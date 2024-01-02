@@ -53,8 +53,11 @@ class Install:
         if not do_install:
             return None
 
+        print("===> Vider le cache de pip")
+        check_call(['pip','cache','purge'])
+        
         print("===> Verifier si pip est a jour")
-        run(['python', '-m', 'pip', 'install', '--upgrade', 'pip'])
+        check_call(['python', '-m', 'pip', 'install', '--upgrade', 'pip'])
 
         if find_spec('greenlet') is None:
             check_call(['pip','install', '--only-binary', ':all:', 'greenlet'])
