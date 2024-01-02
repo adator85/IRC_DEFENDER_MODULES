@@ -16,7 +16,7 @@ Lancement de Defender :
         - pip3 install psutil sqlalchemy requests ou pip install psutil sqlalchemy requests
     - Ne pas lancer Defender en tant que root
     - Créer plutot un service qui lancera Defender en tant qu'utilisateur non root
-    - Un fichier PID sera crée
+    - Un fichier PID sera crée.
 
 # TO DO LIST
 
