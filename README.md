@@ -26,6 +26,7 @@ Lancement de Defender :
 # VERSION 1
 
     [02.01.2024]
+        - Rajout de l'activation de la commande flood
         - Les deux variables RESTART et INIT ont été déplacées vers le module Irc
         - Nouvelle class Install:
             - Le programme va vérifier si les 3 librairies sont installées (SQLAlchemy & requests & psutil)

@@ -603,8 +603,9 @@ class Irc:
         return None
 
     def cmd(self, data:list) -> None:
-        try: 
-            cmd = data
+        try:
+            cmd_to_send:list[str] = data.copy()
+            cmd = data.copy()
 
             if len(cmd) == 0 or len(cmd) == 1:
                 return False
@@ -811,7 +812,7 @@ class Irc:
 
             # Envoyer la commande aux classes dynamiquement chargées
             for classe_name, classe_object in self.loaded_classes.items():
-                classe_object.cmd(cmd)
+                classe_object.cmd(cmd_to_send)
 
         except IndexError as ie:
             self.debug(f"IRC CMD -> IndexError : {ie} - {cmd} - length {str(len(cmd))}")
