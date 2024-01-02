@@ -26,7 +26,7 @@ class Defender():
             0: ['code'],
             1: ['join','part', 'info'],
             2: ['q', 'dq', 'o', 'do', 'h', 'dh', 'v', 'dv', 'b', 'ub','k', 'kb'],
-            3: ['reputation','proxy_scan', 'status', 'timer','show_reputation', 'show_users']
+            3: ['reputation','proxy_scan', 'flood', 'status', 'timer','show_reputation', 'show_users']
         }
         self.__set_commands(self.commands_level)                            # Enrigstrer les nouvelles commandes dans le code
 
@@ -300,7 +300,6 @@ class Defender():
             exec_query = self.Base.db_execute_query(q_insert, mes_donnees)
             pass
 
-
     def join_saved_channels(self) -> None:
 
         result = self.Base.db_execute_query("SELECT id, channel FROM def_channels")
@@ -470,13 +469,13 @@ class Defender():
         return None
 
     def flood(self, detected_user:str, channel:str) -> None:
-        
+
         if self.defConfig['flood'] == 0:
             return None
-        
+
         if not '#' in channel:
             return None
-        
+
         flood_time = self.defConfig['flood_time']
         flood_message = self.defConfig['flood_message']
         flood_timer = self.defConfig['flood_timer']
@@ -621,7 +620,7 @@ class Defender():
     def cmd(self, data:list) -> None:
 
         service_id = self.Config.SERVICE_ID                 # Defender serveur id
-        cmd = data
+        cmd = list(data).copy()
 
         if len(cmd) < 2:
             return None
@@ -655,29 +654,6 @@ class Defender():
                 channel = cmd[2]
                 find_nickname = self.Irc.get_nickname(user_trigger)
                 self.flood(find_nickname, channel)
-
-            case 'SJOIN':
-                # ['@msgid=F9B7JeHL5pj9nN57cJ5pEr;time=2023-12-28T20:47:24.305Z', ':001', 'SJOIN', '1702138958', '#welcome', ':0015L1AHL']
-                try:
-                    cmd.pop(0)
-                    parsed_chan = cmd[3]
-                    self.Irc.insert_db_chan(parsed_chan)
-
-                    if self.defConfig['reputation'] == 1:
-                        parsed_UID = cmd[4]
-                        pattern = fr'^:[@|%|\+|~|\*]*'
-                        parsed_UID = re.sub(pattern, '', parsed_UID)
-                        if parsed_UID in self.db_reputation:
-                            # print(f"====> {str(self.db_reputation)}")
-                            isWebirc = self.db_reputation[parsed_UID]['isWebirc']
-                            if self.defConfig['reputation_ban_all_chan'] == 1 and not isWebirc:
-                                if parsed_chan != self.Config.SALON_JAIL:
-                                    self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b {self.db_reputation[parsed_UID]['nickname']}!*@*")
-                                    self.Irc.send2socket(f":{service_id} KICK {parsed_chan} {self.db_reputation[parsed_UID]['nickname']}")
-
-                        self.Irc.debug(f'SJOIN parsed_uid : {parsed_UID}')
-                except KeyError as ke:
-                    self.Irc.debug(f"key error SJOIN : {ke}")
 
             case 'UID':
 
@@ -722,6 +698,29 @@ class Defender():
                                 if reputation_flag == 1 and int(client_score) <= int(reputation_seuil):
                                     self.system_reputation(uid)
                                     self.Irc.debug('Démarrer le systeme de reputation')
+
+            case 'SJOIN':
+                # ['@msgid=F9B7JeHL5pj9nN57cJ5pEr;time=2023-12-28T20:47:24.305Z', ':001', 'SJOIN', '1702138958', '#welcome', ':0015L1AHL']
+                try:
+                    cmd.pop(0)
+                    parsed_chan = cmd[3]
+                    self.Irc.insert_db_chan(parsed_chan)
+
+                    if self.defConfig['reputation'] == 1:
+                        parsed_UID = cmd[4]
+                        pattern = fr'^:[@|%|\+|~|\*]*'
+                        parsed_UID = re.sub(pattern, '', parsed_UID)
+                        if parsed_UID in self.db_reputation:
+                            # print(f"====> {str(self.db_reputation)}")
+                            isWebirc = self.db_reputation[parsed_UID]['isWebirc']
+                            if self.defConfig['reputation_ban_all_chan'] == 1 and not isWebirc:
+                                if parsed_chan != self.Config.SALON_JAIL:
+                                    self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b {self.db_reputation[parsed_UID]['nickname']}!*@*")
+                                    self.Irc.send2socket(f":{service_id} KICK {parsed_chan} {self.db_reputation[parsed_UID]['nickname']}")
+
+                        self.Irc.debug(f'SJOIN parsed_uid : {parsed_UID}')
+                except KeyError as ke:
+                    self.Irc.debug(f"key error SJOIN : {ke}")
 
             case 'SLOG':
                 # self.Base.scan_ports(cmd[7])
@@ -1018,6 +1017,63 @@ class Defender():
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set local_scan [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set psutil_scan [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set abuseipdb_scan [ON/OFF]')
+
+            case 'flood':
+                # .flood on/off
+                # .flood set flood_message 5
+                # .flood set flood_time 1
+                # .flood set flood_timer 20
+                try:
+                    len_cmd = len(cmd)
+
+                    if len_cmd == 2:
+                        activation = str(cmd[1]).lower()
+                        key = 'flood'
+                        if activation == 'on':
+                            if self.defConfig[key] == 1:
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Already activated")
+                                return False
+
+                            self.update_db_configuration(key, 1)
+                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Activated by {fromuser}")
+
+                        if activation == 'off':
+                            if self.defConfig[key] == 0:
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Already Deactivated")
+                                return False
+
+                            self.update_db_configuration(key, 0)
+                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Deactivated by {fromuser}")
+
+                    if len_cmd == 4:
+                        set_key = str(cmd[2]).lower()
+
+                        if str(cmd[1]).lower() == 'set':
+                            match set_key:
+                                case 'flood_message':
+                                    key = 'flood_message'
+                                    set_value = int(cmd[3])
+                                    print(f"{str(set_value)} - {set_key}")
+                                    self.update_db_configuration(key, set_value)
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Flood message set to {set_value} by {fromuser}")
+
+                                case 'flood_time':
+                                    key = 'flood_time'
+                                    set_value = int(cmd[3])
+                                    self.update_db_configuration(key, set_value)
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Flood time set to {set_value} by {fromuser}")
+
+                                case 'flood_timer':
+                                    key = 'flood_timer'
+                                    set_value = int(cmd[3])
+                                    self.update_db_configuration(key, set_value)
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Flood timer set to {set_value} by {fromuser}")
+
+                                case _:
+                                    pass
+
+                except ValueError as ve:
+                    self.Irc.debug(f"{self.__class__.__name__} Value Error : {ve}")
 
             case 'status':
                 try:
