@@ -39,7 +39,10 @@ class Install:
         return True
     
     def checkDependencies(self) -> None:
-        """Check python dependencies
+        """### Verifie les dépendances si elles sont installées
+        - Test si les modules sont installés
+        - Met a jour pip
+        - Install les modules manquants
         """
         do_install = False
 

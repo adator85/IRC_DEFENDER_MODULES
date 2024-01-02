@@ -22,10 +22,15 @@ Lancement de Defender :
 
     - Optimiser le systeme de réputation:
         - lorsque les users ce connectent, Ils entrent dans un salon puis une fraction de seconde le service les bans
-    - Déplacer les deux variables RESTART et INIT de la configuration a Irc
-
 
 # VERSION 1
+
+    [02.01.2024]
+        - Les deux variables RESTART et INIT ont été déplacées vers le module Irc
+        - Nouvelle class Install:
+            - Le programme va vérifier si les 3 librairies sont installées (SQLAlchemy & requests & psutil)
+            - Une fois la vérification, il va mêtre a jour pip puis installera les dépendances
+
     [28.12.2023]
         - Changement de méthode pour récuperer la version actuelle de python
         - Ajout de la réponse a une PING de la part d'un utilisateur
