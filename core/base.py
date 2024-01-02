@@ -1,5 +1,4 @@
-import time, threading, os, sys, random, socket, hashlib
-from platform import python_version
+import time, threading, os, random, socket, hashlib
 from datetime import datetime
 from sqlalchemy import create_engine, Engine, Connection, CursorResult
 from sqlalchemy.sql import text
@@ -21,10 +20,6 @@ class Base:
 
         self.Config = Config                                    # Assigner l'objet de configuration
 
-        # Tester si la version de python est correcte
-        if not self.isRightPythonVersion():
-            sys.exit(1)
-
         self.running_timers:list[threading.Timer] = []          # Liste des timers en cours
         self.running_threads:list[threading.Thread] = []        # Liste des threads en cours
         self.running_sockets: list[socket.socket] = []          # Les sockets ouvert
@@ -35,27 +30,7 @@ class Base:
         self.engine, self.cursor = self.db_init()               # Initialisation de la connexion a la base de données
         self.__create_db()                                      # Initialisation de la base de données
 
-        self.db_create_first_admin()
-
-    def isRightPythonVersion(self) -> bool:
-        """Test si la version de python est autorisée ou non
-
-        Returns:
-            bool: True si la version de python est autorisé sinon False
-        """
-        python_required_version = self.PYTHON_MIN_VERSION.split('.')
-        python_current_version = python_version().split('.')
-
-        if int(python_current_version[0]) < int(python_required_version[0]):
-            print(f"## Your python version must be greather than or equal to {self.PYTHON_MIN_VERSION} ##")
-            return False
-        elif int(python_current_version[1]) < int(python_required_version[1]):
-            print(f"### Your python version must be greather than or equal to {self.PYTHON_MIN_VERSION} ###")
-            return False
-
-        # print(f"===> Version of python : {python_version()} ==> OK")
-
-        return True
+        self.db_create_first_admin()                            # Créer un nouvel admin si la base de données est vide
 
     def get_unixtime(self)->int:
         """
