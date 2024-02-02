@@ -27,7 +27,7 @@ class Irc:
         self.commands_level = {
             0: ['help', 'auth', 'copyright'],
             1: ['load','reload','unload', 'deauth', 'uptime'],
-            2: ['show_sessions','show_modules', 'show_timers', 'show_threads'],
+            2: ['show_modules', 'show_timers', 'show_threads', 'sentinel'],
             3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
         }
 
@@ -348,6 +348,8 @@ class Irc:
         except ModuleNotFoundError as moduleNotFound:
             self.debug(f"MODULE_NOT_FOUND: {moduleNotFound}")
             self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}MODULE_NOT_FOUND{self.Config.CONFIG_COLOR['noire']} ]: {moduleNotFound}")
+        except:
+            self.debug(f"Something went wrong with a module you want to load")
 
     def insert_db_uid(self, uid:str, nickname:str, username:str, hostname:str, umodes:str, vhost:str, isWebirc: bool) -> None:
 
@@ -739,6 +741,9 @@ class Irc:
 
                     self.insert_db_uid(uid, nickname, username, hostname, umodes, vhost, isWebirc)
 
+                    for classe_name, classe_object in self.loaded_classes.items():
+                        classe_object.cmd(cmd_to_send)
+
                 case 'PRIVMSG':
                     try:
                         # Supprimer la premiere valeur
@@ -810,9 +815,10 @@ class Irc:
                 case _:
                     pass
 
-            # Envoyer la commande aux classes dynamiquement chargées
-            for classe_name, classe_object in self.loaded_classes.items():
-                classe_object.cmd(cmd_to_send)
+            if cmd[2] != 'UID':
+                # Envoyer la commande aux classes dynamiquement chargées
+                for classe_name, classe_object in self.loaded_classes.items():
+                    classe_object.cmd(cmd_to_send)
 
         except IndexError as ie:
             self.debug(f"IRC CMD -> IndexError : {ie} - {cmd} - length {str(len(cmd))}")
@@ -1023,37 +1029,12 @@ class Irc:
 
             case 'unload':
                 # unload mod_dktmb
-                module_name = str(cmd[1]).lower()                              # Le nom du module. exemple: mod_defender
-                class_name = module_name.split('_')[1].capitalize()            # Nom de la class. exemple: Defender
+                try:
+                    module_name = str(cmd[1]).lower()                              # Le nom du module. exemple: mod_defender
+                    class_name = module_name.split('_')[1].capitalize()            # Nom de la class. exemple: Defender
 
-                if class_name in self.loaded_classes:
-
-                    for level, command in self.loaded_classes[class_name].commands_level.items():
-                        # Supprimer la commande de la variable commands
-                        for c in self.loaded_classes[class_name].commands_level[level]:
-                            self.commands.remove(c)
-                            self.commands_level[level].remove(c)
-
-                    del self.loaded_classes[class_name]
-
-                    # Supprimer le module de la base de données
-                    self.Base.db_delete_module(module_name)
-
-                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} supprimé")
-
-            case 'reload':
-                # reload mod_dktmb
-                module_name = str(cmd[1]).lower()                                          # ==> mod_defender
-                class_name = module_name.split('_')[1].capitalize()                        # ==> Defender
-
-                if 'mods.' + module_name in sys.modules:
-                    self.debug('Module Already Loaded ... reload the module ...')
-                    the_module = sys.modules['mods.' + module_name]
-                    importlib.reload(the_module)
-                    
-                    # Supprimer la class déja instancier
                     if class_name in self.loaded_classes:
-                    # Supprimer les commandes déclarer dans la classe
+
                         for level, command in self.loaded_classes[class_name].commands_level.items():
                             # Supprimer la commande de la variable commands
                             for c in self.loaded_classes[class_name].commands_level[level]:
@@ -1062,14 +1043,45 @@ class Irc:
 
                         del self.loaded_classes[class_name]
 
-                    my_class = getattr(the_module, class_name, None)
-                    new_instance = my_class(self.ircObject)
-                    self.loaded_classes[class_name] = new_instance
+                        # Supprimer le module de la base de données
+                        self.Base.db_delete_module(module_name)
 
-                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} rechargé")
-                    return False
-                else:
-                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} n'est pas chargé !")
+                        self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} supprimé")
+                except:
+                    self.debug(f"Something went wrong with a module you want to load")
+
+            case 'reload':
+                # reload mod_dktmb
+                try:
+                    module_name = str(cmd[1]).lower()                                          # ==> mod_defender
+                    class_name = module_name.split('_')[1].capitalize()                        # ==> Defender
+
+                    if 'mods.' + module_name in sys.modules:
+                        self.debug('Module Already Loaded ... reload the module ...')
+                        the_module = sys.modules['mods.' + module_name]
+                        importlib.reload(the_module)
+                        
+                        # Supprimer la class déja instancier
+                        if class_name in self.loaded_classes:
+                        # Supprimer les commandes déclarer dans la classe
+                            for level, command in self.loaded_classes[class_name].commands_level.items():
+                                # Supprimer la commande de la variable commands
+                                for c in self.loaded_classes[class_name].commands_level[level]:
+                                    self.commands.remove(c)
+                                    self.commands_level[level].remove(c)
+
+                            del self.loaded_classes[class_name]
+
+                        my_class = getattr(the_module, class_name, None)
+                        new_instance = my_class(self.ircObject)
+                        self.loaded_classes[class_name] = new_instance
+
+                        self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} rechargé")
+                        return False
+                    else:
+                        self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} n'est pas chargé !")
+                except:
+                    self.debug(f"Something went wrong with a module you want to reload")
 
             case 'quit':
                 try:
@@ -1141,6 +1153,22 @@ class Irc:
 
             case 'copyright':
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Config.DEFENDER_VERSION} Developped by adator® and dktmb® #')
+
+            case 'sentinel':
+                # .sentinel on
+                activation = str(cmd[1]).lower()
+                service_id = self.Config.SERVICE_ID
+                
+                channel_to_dont_quit = [self.Config.SALON_JAIL, dchanlog]
+                
+                if activation == 'on':
+                    for chan in self.db_chan:
+                        if not chan in channel_to_dont_quit:
+                            self.send2socket(f":{service_id} JOIN {chan}")
+                if activation == 'off':
+                    for chan in self.db_chan:
+                        if not chan in channel_to_dont_quit:
+                            self.send2socket(f":{service_id} PART {chan}")
 
             case _:
                 pass
