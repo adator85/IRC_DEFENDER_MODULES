@@ -45,8 +45,9 @@ class Defender():
         """
         for level, com in commands.items():
             for c in commands[level]:
-                self.Irc.commands_level[level].append(c)
-                self.Irc.commands.append(c)
+                if not c in self.Irc.commands:
+                    self.Irc.commands_level[level].append(c)
+                    self.Irc.commands.append(c)
 
         return None
 
