@@ -773,7 +773,6 @@ class Defender():
 
         command = str(cmd[0]).lower()
         fromuser = user
-        # print(command)
 
         dnickname = self.Config.SERVICE_NICKNAME            # Defender nickname
         dchanlog = self.Config.SERVICE_CHANLOG              # Defender chan log
@@ -810,6 +809,10 @@ class Defender():
                     release_code = cmd[1]
                     jailed_nickname = self.Irc.get_nickname(fromuser)
                     jailed_UID = self.Irc.get_uid(fromuser)
+                    if not jailed_UID in self.db_reputation:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} : No code is requested ...")
+                        return False
+
                     jailed_IP = self.db_reputation[jailed_UID]['ip']
                     jailed_salon = self.Config.SALON_JAIL
                     reputation_seuil = self.defConfig['reputation_seuil']
@@ -846,8 +849,11 @@ class Defender():
                 except IndexError:
                     self.Irc.debug('_hcmd code: out of index')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} code [code]')
+                except KeyError as ke:
+                    self.Irc.debug(f'_hcmd code: KeyError {ke}')
+                    # self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} code [code]')
                 pass
-                pass
+
 
             case 'reputation':
                 # .reputation [on/off] --> activate or deactivate reputation system
@@ -1076,16 +1082,19 @@ class Defender():
                     self.Irc.debug(f"{self.__class__.__name__} Value Error : {ve}")
 
             case 'status':
+                color_green = self.Config.CONFIG_COLOR['verte']
+                color_red = self.Config.CONFIG_COLOR['rouge']
+                color_black = self.Config.CONFIG_COLOR['noire']
                 try:
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Reputation                             ==> {self.defConfig["reputation"]}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : [{color_green if self.defConfig["reputation"] == 1 else color_red}Reputation{color_black}]                           ==> {self.defConfig["reputation"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :           reputation_seuil             ==> {self.defConfig["reputation_seuil"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :           reputation_ban_all_chan      ==> {self.defConfig["reputation_ban_all_chan"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :           reputation_timer             ==> {self.defConfig["reputation_timer"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : [Proxy_scan]')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             local_scan                 ==> {self.defConfig["local_scan"]}')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             psutil_scan                ==> {self.defConfig["psutil_scan"]}')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             abuseipdb_scan             ==> {self.defConfig["abuseipdb_scan"]}')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Flood                                  ==> {self.defConfig["flood"]}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["local_scan"] == 1 else color_red}local_scan{color_black}                 ==> {self.defConfig["local_scan"]}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["psutil_scan"] == 1 else color_red}psutil_scan{color_black}                ==> {self.defConfig["psutil_scan"]}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["abuseipdb_scan"] == 1 else color_red}abuseipdb_scan{color_black}             ==> {self.defConfig["abuseipdb_scan"]}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : [{color_green if self.defConfig["flood"] == 1 else color_red}Flood{color_black}]                                ==> {self.defConfig["flood"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :      flood_action                      ==> Coming soon')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :      flood_message                     ==> {self.defConfig["flood_message"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :      flood_time                        ==> {self.defConfig["flood_time"]}')
