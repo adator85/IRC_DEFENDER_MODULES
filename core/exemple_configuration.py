@@ -6,7 +6,7 @@ import os
 
 class Config:
 
-    DEFENDER_VERSION = '1.1.0'                              # MAJOR.MINOR.BATCH
+    DEFENDER_VERSION = '3.2.2'                              # MAJOR.MINOR.BATCH
     DEFENDER_DB_PATH = 'db' + os.sep                        # Séparateur en fonction de l'OS
     DEFENDER_DB_NAME = 'defender'                           # Le nom de la base de données principale
     SERVICE_NAME = 'defender'                               # Le nom du service
