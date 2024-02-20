@@ -738,21 +738,24 @@ class Defender():
             case 'NICK':
                 # :0010BS24L NICK [NEWNICK] 1697917711
                 # Changement de nickname
-                cmd.pop(0)
-                uid = str(cmd[0]).replace(':','')
-                oldnick = self.db_reputation[uid]['nickname']
-                newnickname = cmd[2]
-                
-                jail_salon = self.Config.SALON_JAIL
-                service_id = self.Config.SERVICE_ID
+                try:
+                    cmd.pop(0)
+                    uid = str(cmd[0]).replace(':','')
+                    oldnick = self.db_reputation[uid]['nickname']
+                    newnickname = cmd[2]
 
-                self.update_db_reputation(uid, newnickname)
+                    jail_salon = self.Config.SALON_JAIL
+                    service_id = self.Config.SERVICE_ID
 
-                if uid in self.db_reputation:
-                    for chan in self.Irc.db_chan:
-                        if chan != jail_salon:
-                            self.Irc.send2socket(f":{service_id} MODE {chan} -b {oldnick}!*@*")
-                            self.Irc.send2socket(f":{service_id} MODE {chan} +b {newnickname}!*@*")
+                    self.update_db_reputation(uid, newnickname)
+
+                    if uid in self.db_reputation:
+                        for chan in self.Irc.db_chan:
+                            if chan != jail_salon:
+                                self.Irc.send2socket(f":{service_id} MODE {chan} -b {oldnick}!*@*")
+                                self.Irc.send2socket(f":{service_id} MODE {chan} +b {newnickname}!*@*")
+                except KeyError as ke:
+                    self.Irc.debug(f'cmd - NICK - KeyError: {ke}')
 
             case 'QUIT':
                 # :001N1WD7L QUIT :Quit: free_znc_1
