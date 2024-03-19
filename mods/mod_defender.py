@@ -603,6 +603,9 @@ class Defender():
         # Formatted output
         decodedResponse = json.loads(response.text)
         try:
+            if not 'data' in decodedResponse:
+                return None
+
             result = {
                 'score': decodedResponse['data']['abuseConfidenceScore'],
                 'country': decodedResponse['data']['countryCode'],
