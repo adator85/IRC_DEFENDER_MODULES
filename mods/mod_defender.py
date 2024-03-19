@@ -554,6 +554,8 @@ class Defender():
                 self.Irc.debug(f"Le port {str(port)} est fermé")
             except AttributeError as ae:
                 self.Irc.debug(f"AttributeError : {ae}")
+            except socket.gaierror as err:
+                self.Irc.debug(f"Address Info Error: {err}")
             finally:
                 # newSocket.shutdown(socket.SHUT_RDWR)
                 newSocket.close()
