@@ -18,6 +18,7 @@ class Defender():
         self.Irc = ircInstance                                              # Ajouter l'object mod_irc a la classe ( Obligatoire )
         self.Config = ircInstance.Config                                    # Ajouter la configuration a la classe ( Obligatoire )
         self.Base = ircInstance.Base                                        # Ajouter l'objet Base au module ( Obligatoire )
+        self.timeout = self.Config.API_TIMEOUT                              # API Timeout
 
         self.Irc.debug(f'Module {self.__class__.__name__} loaded ...')
 
@@ -109,6 +110,7 @@ class Defender():
             'local_scan': 0,
             'psutil_scan': 0,
             'abuseipdb_scan': 0,
+            'freeipapi_scan': 1,
             'flood': 0,
             'flood_message': 5,
             'flood_time': 1,
@@ -195,7 +197,7 @@ class Defender():
                 self.Irc.debug(f'DB_Def_config - new param updated : {param} {value}')
 
         self.Irc.debug(self.defConfig)
-        
+
     def add_defender_channel(self, channel:str) -> bool:
         """Cette fonction ajoute les salons de join de Defender
 
@@ -349,7 +351,7 @@ class Defender():
 
         uptime = current_datetime - connected_time
         convert_to_minutes = uptime.seconds / 60
-        uptime_minutes = round(number=convert_to_minutes, ndigits=2)
+        uptime_minutes = round(number=convert_to_minutes, ndigits=0)
 
         return uptime_minutes
 
@@ -426,6 +428,7 @@ class Defender():
                 if not self.db_reputation[uid]['isWebirc']: # Si il ne vient pas de WebIRC
                     self.Irc.debug(f"Nickname: {self.db_reputation[uid]['nickname']} | uptime: {self.get_user_uptime_in_minutes(uid)} | reputation time: {reputation_timer}")
                     if self.get_user_uptime_in_minutes(uid) >= reputation_timer and int(self.db_reputation[uid]['score']) <= int(reputation_seuil):
+                        self.Irc.debug('-----'*20)
                         self.Irc.send2socket(f":{service_id} PRIVMSG {dchanlog} :[{color_red} REPUTATION {color_black}] : Action sur {self.db_reputation[uid]['nickname']} aprés {str(reputation_timer)} minutes d'inactivité")
                         # if not system_reputation_timer_action(cglobal['reputation_timer_action'], uid, self.db_reputation[uid]['nickname']):
                         #     return False
@@ -593,7 +596,7 @@ class Defender():
             'Key': self.abuseipdb_key
         }
 
-        response = requests.request(method='GET', url=url, headers=headers, params=querystring)
+        response = requests.request(method='GET', url=url, headers=headers, params=querystring, timeout=self.timeout)
 
         # Formatted output
         decodedResponse = json.loads(response.text)
@@ -611,6 +614,56 @@ class Defender():
             color_black = self.Config.CONFIG_COLOR['noire']
 
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}ABUSEIPDB_SCAN{color_black} ] : Connexion de {remote_ip} Score: {str(result['score'])} | Country : {result['country']} | Tor : {str(result['isTor'])} | Total Reports : {str(result['totalReports'])}")
+
+            response.close()
+
+            return result
+        except KeyError as ke:
+            self.Irc.debug(f"AbuseIpDb KeyError : {ke}")
+
+    def freeipapi_scan(self, remote_ip:str) -> dict[str, any] | None:
+        """Analyse l'ip avec Freeipapi
+           Cette methode devra etre lancer toujours via un thread ou un timer.
+        Args:
+            remote_ip (_type_): l'ip a analyser
+
+        Returns:
+            dict[str, any] | None: les informations du provider
+            keys : 'countryCode', 'isProxy'
+        """
+        if self.defConfig['freeipapi_scan'] == 0:
+            return None
+
+        service_id = self.Config.SERVICE_ID
+        service_chanlog = self.Config.SERVICE_CHANLOG
+        color_red = self.Config.CONFIG_COLOR['rouge']
+        color_black = self.Config.CONFIG_COLOR['noire']
+
+        url = 'https://freeipapi.com/api/json/'
+
+        headers = {
+            'Accept': 'application/json',
+        }
+
+        response = requests.request(method='GET', url=url, headers=headers, timeout=self.timeout)
+
+        # Formatted output
+        decodedResponse = json.loads(response.text)
+        try:
+            status_code = response.status_code
+            if status_code == 429:
+                self.Irc.debug(f'Too Many Requests - The rate limit for the API has been exceeded.')
+                return None
+            elif status_code != 200:
+                print("salut salut")
+                return None
+
+            result = {
+                'countryCode': decodedResponse['countryCode'],
+                'isProxy': decodedResponse['isProxy']
+            }
+
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {result['countryCode']}")
 
             response.close()
 
@@ -643,6 +696,9 @@ class Defender():
 
                     if self.defConfig['abuseipdb_scan'] == 1:
                         self.Base.create_thread(self.abuseipdb_scan, (cmd[2], ))
+
+                    if self.defConfig['freeipapi_scan'] == 1:
+                        self.Base.create_thread(self.freeipapi_scan, (cmd[2], ))
                     # Possibilité de déclancher les bans a ce niveau.
                 except IndexError:
                     self.Irc.debug(f'cmd reputation: index error')
@@ -858,7 +914,6 @@ class Defender():
                     # self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} code [code]')
                 pass
 
-
             case 'reputation':
                 # .reputation [on/off] --> activate or deactivate reputation system
                 # .reputation set banallchan [on/off] --> activate or deactivate ban in all channel
@@ -972,6 +1027,7 @@ class Defender():
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set local_scan [ON/OFF]')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set psutil_scan [ON/OFF]')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set abuseipdb_scan [ON/OFF]')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set freeipapi_scan [ON/OFF]')
 
                     option = str(cmd[2]).lower() # => local_scan, psutil_scan, abuseipdb_scan
                     action = str(cmd[3]).lower() # => on / off
@@ -1019,14 +1075,30 @@ class Defender():
                                 self.update_db_configuration(option, 0)
                                 self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_red}PROXY_SCAN {option.upper()}{color_black} ] : Deactivated by {fromuser}")
 
+                        case 'freeipapi_scan':
+                            if action == 'on':
+                                if self.defConfig[option] == 1:
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_green}PROXY_SCAN {option.upper()}{color_black} ] : Already activated")
+                                    return None
+                                self.update_db_configuration(option, 1)
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_green}PROXY_SCAN {option.upper()}{color_black} ] : Activated by {fromuser}")
+                            elif action == 'off':
+                                if self.defConfig[option] == 0:
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_red}PROXY_SCAN {option.upper()}{color_black} ] : Already Deactivated")
+                                    return None
+                                self.update_db_configuration(option, 0)
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_red}PROXY_SCAN {option.upper()}{color_black} ] : Deactivated by {fromuser}")
+
                         case _:
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set local_scan [ON/OFF]')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set psutil_scan [ON/OFF]')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set abuseipdb_scan [ON/OFF]')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set freeipapi_scan [ON/OFF]')
                 else:
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set local_scan [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set psutil_scan [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set abuseipdb_scan [ON/OFF]')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set freeipapi_scan [ON/OFF]')
 
             case 'flood':
                 # .flood on/off
@@ -1098,6 +1170,7 @@ class Defender():
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["local_scan"] == 1 else color_red}local_scan{color_black}                 ==> {self.defConfig["local_scan"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["psutil_scan"] == 1 else color_red}psutil_scan{color_black}                ==> {self.defConfig["psutil_scan"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["abuseipdb_scan"] == 1 else color_red}abuseipdb_scan{color_black}             ==> {self.defConfig["abuseipdb_scan"]}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["freeipapi_scan"] == 1 else color_red}abuseipdb_scan{color_black}             ==> {self.defConfig["freeipapi_scan"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : [{color_green if self.defConfig["flood"] == 1 else color_red}Flood{color_black}]                                ==> {self.defConfig["flood"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :      flood_action                      ==> Coming soon')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :      flood_message                     ==> {self.defConfig["flood_message"]}')
