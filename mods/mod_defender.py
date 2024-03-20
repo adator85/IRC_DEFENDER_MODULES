@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Union
 import re, socket, psutil, requests, json
 from core.irc import Irc
 
@@ -355,7 +356,7 @@ class Defender():
 
         return uptime_minutes
 
-    def system_reputation(self, uid:str)->None:
+    def system_reputation(self, uid:str)-> None:
         # Reputation security
         # - Activation ou désactivation du système --> OK
         # - Le user sera en mesure de changer la limite de la réputation --> OK
@@ -578,7 +579,7 @@ class Defender():
 
         return matching_ports
 
-    def abuseipdb_scan(self, remote_ip:str) -> dict[str, any] | None:
+    def abuseipdb_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
         """Analyse l'ip avec AbuseIpDB
            Cette methode devra etre lancer toujours via un thread ou un timer.
         Args:
@@ -635,7 +636,7 @@ class Defender():
         except KeyError as ke:
             self.Irc.debug(f"AbuseIpDb KeyError : {ke}")
 
-    def freeipapi_scan(self, remote_ip:str) -> dict[str, any] | None:
+    def freeipapi_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
         """Analyse l'ip avec Freeipapi
            Cette methode devra etre lancer toujours via un thread ou un timer.
         Args:
@@ -806,6 +807,9 @@ class Defender():
 
                 if self.defConfig['abuseipdb_scan'] == 1:
                     self.Base.create_thread(self.abuseipdb_scan, (cmd[7], ))
+
+                if self.defConfig['freeipapi_scan'] == 1:
+                    self.Base.create_thread(self.freeipapi_scan, (cmd[7], ))
 
             case 'NICK':
                 # :0010BS24L NICK [NEWNICK] 1697917711

@@ -32,7 +32,7 @@ class Base:
 
         self.db_create_first_admin()                            # Créer un nouvel admin si la base de données est vide
 
-    def get_unixtime(self)->int:
+    def get_unixtime(self) -> int:
         """
         Cette fonction retourne un UNIXTIME de type 12365456
         Return: Current time in seconds since the Epoch (int)
@@ -40,7 +40,7 @@ class Base:
         unixtime = int( time.time() )
         return unixtime
 
-    def get_datetime(self)->str:
+    def get_datetime(self) -> str:
         """
         Retourne une date au format string (24-12-2023 20:50:59)
         """
@@ -137,7 +137,7 @@ class Base:
                                   (:createdOn, :user, :password, :hostname, :vhost, :level)"""
                                   , mes_donnees)
 
-        pass
+        return None
 
     def create_timer(self, time_to_wait: float, func: object, func_args: tuple = ()) -> None:
 
@@ -243,7 +243,7 @@ class Base:
             self.running_sockets.remove(soc)
             print(f"> Socket ==> closed {str(soc.fileno())}")
 
-        pass
+        return None
 
     def db_init(self) -> tuple[Engine, Connection]:
 
