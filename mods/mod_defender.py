@@ -736,7 +736,7 @@ class Defender():
                 'host': decodedResponse['host'] if 'host' in decodedResponse else None
             }
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {remote_ip} ==> host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {result['listed_by']}")
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {remote_ip} ==> Host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {result['listed_by']}")
 
             response.close()
 
