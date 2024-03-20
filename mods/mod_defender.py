@@ -98,6 +98,7 @@ class Defender():
         self.flood_system = {}                                                                                  # Variable qui va contenir les users
         self.reputation_first_connexion = {'ip': '', 'score': -1}                                               # Contient les premieres informations de connexion
         self.abuseipdb_key = '13c34603fee4d2941a2c443cc5c77fd750757ca2a2c1b304bd0f418aff80c24be12651d1a3cfe674' # Laisser vide si aucune clé
+        self.cloudfilt_key = 'r1gEtjtfgRQjtNBDMxsg'                                                             # Laisser vide si aucune clé
 
         # Rejoindre les salons
         self.join_saved_channels()
@@ -111,7 +112,8 @@ class Defender():
             'local_scan': 0,
             'psutil_scan': 0,
             'abuseipdb_scan': 0,
-            'freeipapi_scan': 1,
+            'freeipapi_scan': 0,
+            'cloudfilt_scan': 0,
             'flood': 0,
             'flood_message': 5,
             'flood_time': 1,
@@ -676,8 +678,8 @@ class Defender():
                 return None
 
             result = {
-                'countryCode': decodedResponse['countryCode'],
-                'isProxy': decodedResponse['isProxy']
+                'countryCode': decodedResponse['countryCode'] if 'countryCode' in decodedResponse else None,
+                'isProxy': decodedResponse['isProxy'] if 'isProxy' in decodedResponse else None
             }
 
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {result['countryCode']}")
@@ -686,7 +688,7 @@ class Defender():
 
             return result
         except KeyError as ke:
-            self.Irc.debug(f"AbuseIpDb KeyError : {ke}")
+            self.Irc.debug(f"FREEIPAPI_SCAN KeyError : {ke}")
 
     def cloudfilt_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
         """Analyse l'ip avec cloudfilt
@@ -708,37 +710,37 @@ class Defender():
         color_red = self.Config.CONFIG_COLOR['rouge']
         color_black = self.Config.CONFIG_COLOR['noire']
 
-        url = 'https://freeipapi.com/api/json/'
+        url = f"https://developers18334.cloudfilt.com/"
 
-        headers = {
-            'Accept': 'application/json',
+        data = {
+            'ip': remote_ip,
+            'key': 'r1gEtjtfgRQjtNBDMxsg'
         }
 
-        response = requests.request(method='POST', url=url, headers=headers, timeout=self.timeout)
+        response = requests.post(url=url, data=data)
 
         # Formatted output
         decodedResponse = json.loads(response.text)
         try:
             status_code = response.status_code
-            if status_code == 429:
-                self.Irc.debug(f'Too Many Requests - The rate limit for the API has been exceeded.')
-                return None
-            elif status_code != 200:
-                print("salut salut")
+            if status_code != 200:
+                self.Irc.debug(f'Error connecting to cloudfilt API | Code: {str(status_code)}')
                 return None
 
             result = {
-                'countryCode': decodedResponse['countryCode'],
-                'isProxy': decodedResponse['isProxy']
+                'countryiso': decodedResponse['countryiso'] if 'countryiso' in decodedResponse else None,
+                'listed': decodedResponse['listed'] if 'listed' in decodedResponse else None,
+                'listed_by': decodedResponse['listed_by'] if 'listed_by' in decodedResponse else None,
+                'host': decodedResponse['host'] if 'host' in decodedResponse else None
             }
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {result['countryCode']}")
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {remote_ip} ==> host: {str(result['host'])} | country: {str(result['countryiso'])} listed: {str(result['listed'])} | listed by : {result['listed_by']}")
 
             response.close()
 
             return result
         except KeyError as ke:
-            self.Irc.debug(f"AbuseIpDb KeyError : {ke}")
+            self.Irc.debug(f"CLOUDFILT_SCAN KeyError : {ke}")
         return None
 
     def cmd(self, data:list) -> None:
@@ -769,6 +771,9 @@ class Defender():
 
                     if self.defConfig['freeipapi_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
                         self.Base.create_thread(self.freeipapi_scan, (cmd[2], ))
+
+                    if self.defConfig['cloudfilt_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
+                        self.Base.create_thread(self.cloudfilt_scan, (cmd[2], ))
                     # Possibilité de déclancher les bans a ce niveau.
                 except IndexError:
                     self.Irc.debug(f'cmd reputation: index error')
@@ -863,6 +868,9 @@ class Defender():
 
                 if self.defConfig['freeipapi_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
                     self.Base.create_thread(self.freeipapi_scan, (cmd[7], ))
+
+                if self.defConfig['cloudfilt_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                    self.Base.create_thread(self.cloudfilt_scan, (cmd[7], ))
 
             case 'NICK':
                 # :0010BS24L NICK [NEWNICK] 1697917711
@@ -1101,6 +1109,7 @@ class Defender():
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set psutil_scan [ON/OFF]')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set abuseipdb_scan [ON/OFF]')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set freeipapi_scan [ON/OFF]')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set cloudfilt_scan [ON/OFF]')
 
                     option = str(cmd[2]).lower() # => local_scan, psutil_scan, abuseipdb_scan
                     action = str(cmd[3]).lower() # => on / off
@@ -1162,16 +1171,32 @@ class Defender():
                                 self.update_db_configuration(option, 0)
                                 self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_red}PROXY_SCAN {option.upper()}{color_black} ] : Deactivated by {fromuser}")
 
+                        case 'cloudfilt_scan':
+                            if action == 'on':
+                                if self.defConfig[option] == 1:
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_green}PROXY_SCAN {option.upper()}{color_black} ] : Already activated")
+                                    return None
+                                self.update_db_configuration(option, 1)
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_green}PROXY_SCAN {option.upper()}{color_black} ] : Activated by {fromuser}")
+                            elif action == 'off':
+                                if self.defConfig[option] == 0:
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_red}PROXY_SCAN {option.upper()}{color_black} ] : Already Deactivated")
+                                    return None
+                                self.update_db_configuration(option, 0)
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_red}PROXY_SCAN {option.upper()}{color_black} ] : Deactivated by {fromuser}")
+
                         case _:
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set local_scan [ON/OFF]')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set psutil_scan [ON/OFF]')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set abuseipdb_scan [ON/OFF]')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set freeipapi_scan [ON/OFF]')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set cloudfilt_scan [ON/OFF]')
                 else:
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set local_scan [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set psutil_scan [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set abuseipdb_scan [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set freeipapi_scan [ON/OFF]')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} proxy_scan set cloudfilt_scan [ON/OFF]')
 
             case 'flood':
                 # .flood on/off
