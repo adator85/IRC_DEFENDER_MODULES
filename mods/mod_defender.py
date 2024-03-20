@@ -630,7 +630,7 @@ class Defender():
             color_red = self.Config.CONFIG_COLOR['rouge']
             color_black = self.Config.CONFIG_COLOR['noire']
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}ABUSEIPDB_SCAN{color_black} ] : Connexion de {remote_ip} Score: {str(result['score'])} | Country : {result['country']} | Tor : {str(result['isTor'])} | Total Reports : {str(result['totalReports'])}")
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}ABUSEIPDB_SCAN{color_black} ] : Connexion de {remote_ip} ==> Score: {str(result['score'])} | Country : {result['country']} | Tor : {str(result['isTor'])} | Total Reports : {str(result['totalReports'])}")
 
             response.close()
 
@@ -734,7 +734,7 @@ class Defender():
                 'host': decodedResponse['host'] if 'host' in decodedResponse else None
             }
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {remote_ip} ==> host: {str(result['host'])} | country: {str(result['countryiso'])} listed: {str(result['listed'])} | listed by : {result['listed_by']}")
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {remote_ip} ==> host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {result['listed_by']}")
 
             response.close()
 
