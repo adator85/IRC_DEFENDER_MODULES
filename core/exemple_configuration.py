@@ -1,4 +1,5 @@
 import os
+from typing import Literal, Dict, List
 ##########################################
 #   CONFIGURATION FILE :                 #
 #   Rename file to : configuration.py    #
@@ -6,7 +7,7 @@ import os
 
 class Config:
 
-    DEFENDER_VERSION = '3.2.2'                              # MAJOR.MINOR.BATCH
+    DEFENDER_VERSION = '3.3.2'                              # MAJOR.MINOR.BATCH
     DEFENDER_DB_PATH = 'db' + os.sep                        # Séparateur en fonction de l'OS
     DEFENDER_DB_NAME = 'defender'                           # Le nom de la base de données principale
     SERVICE_NAME = 'defender'                               # Le nom du service
@@ -37,7 +38,10 @@ class Config:
     SALON_JAIL_MODES = 'sS'                                 # Mode du salon pot de miel
     SALON_LIBERER = '#welcome'                              # Le salon ou sera envoyé l'utilisateur clean
 
+    API_TIMEOUT = 2                                         # Timeout des api's
+
     PORTS_TO_SCAN = [3028, 8080, 1080, 1085, 4145, 9050]    # Liste des ports a scanné pour une detection de proxy
+    WHITELISTED_IP = ['127.0.0.1']                          # IP a ne pas scanner
 
     DEBUG = 0                                               # Afficher l'ensemble des messages du serveurs dans la console
 
