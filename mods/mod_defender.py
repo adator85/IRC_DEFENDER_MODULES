@@ -1269,6 +1269,7 @@ class Defender():
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["psutil_scan"] == 1 else color_red}psutil_scan{color_black}                ==> {self.defConfig["psutil_scan"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["abuseipdb_scan"] == 1 else color_red}abuseipdb_scan{color_black}             ==> {self.defConfig["abuseipdb_scan"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["freeipapi_scan"] == 1 else color_red}freeipapi_scan{color_black}             ==> {self.defConfig["freeipapi_scan"]}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :             {color_green if self.defConfig["cloudfilt_scan"] == 1 else color_red}cloudfilt_scan{color_black}             ==> {self.defConfig["cloudfilt_scan"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : [{color_green if self.defConfig["flood"] == 1 else color_red}Flood{color_black}]                                ==> {self.defConfig["flood"]}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :      flood_action                      ==> Coming soon')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :      flood_message                     ==> {self.defConfig["flood_message"]}')
