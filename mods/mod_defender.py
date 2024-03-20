@@ -799,16 +799,16 @@ class Defender():
             case 'SLOG':
                 # self.Base.scan_ports(cmd[7])
                 cmd.pop(0)
-                if self.defConfig['local_scan'] == 1:
+                if self.defConfig['local_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
                     self.Base.create_thread(self.scan_ports, (cmd[7], ))
 
-                if self.defConfig['psutil_scan'] == 1:
+                if self.defConfig['psutil_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
                     self.Base.create_thread(self.get_ports_connexion, (cmd[7], ))
 
-                if self.defConfig['abuseipdb_scan'] == 1:
+                if self.defConfig['abuseipdb_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
                     self.Base.create_thread(self.abuseipdb_scan, (cmd[7], ))
 
-                if self.defConfig['freeipapi_scan'] == 1:
+                if self.defConfig['freeipapi_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
                     self.Base.create_thread(self.freeipapi_scan, (cmd[7], ))
 
             case 'NICK':
