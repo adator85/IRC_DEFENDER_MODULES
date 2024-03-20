@@ -704,6 +704,8 @@ class Defender():
             return None
         if self.defConfig['cloudfilt_scan'] == 0:
             return None
+        if self.cloudfilt_key == '':
+            return None
 
         service_id = self.Config.SERVICE_ID
         service_chanlog = self.Config.SERVICE_CHANLOG
@@ -714,7 +716,7 @@ class Defender():
 
         data = {
             'ip': remote_ip,
-            'key': 'r1gEtjtfgRQjtNBDMxsg'
+            'key': self.cloudfilt_key
         }
 
         response = requests.post(url=url, data=data)
