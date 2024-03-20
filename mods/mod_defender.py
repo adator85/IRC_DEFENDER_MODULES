@@ -656,7 +656,7 @@ class Defender():
         color_red = self.Config.CONFIG_COLOR['rouge']
         color_black = self.Config.CONFIG_COLOR['noire']
 
-        url = 'https://freeipapi.com/api/json/'
+        url = f'https://freeipapi.com/api/json/{remote_ip}'
 
         headers = {
             'Accept': 'application/json',
@@ -687,6 +687,59 @@ class Defender():
             return result
         except KeyError as ke:
             self.Irc.debug(f"AbuseIpDb KeyError : {ke}")
+
+    def cloudfilt_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
+        """Analyse l'ip avec cloudfilt
+           Cette methode devra etre lancer toujours via un thread ou un timer.
+        Args:
+            remote_ip (_type_): l'ip a analyser
+
+        Returns:
+            dict[str, any] | None: les informations du provider
+            keys : 'countryCode', 'isProxy'
+        """
+        if remote_ip in self.Config.WHITELISTED_IP:
+            return None
+        if self.defConfig['cloudfilt_scan'] == 0:
+            return None
+
+        service_id = self.Config.SERVICE_ID
+        service_chanlog = self.Config.SERVICE_CHANLOG
+        color_red = self.Config.CONFIG_COLOR['rouge']
+        color_black = self.Config.CONFIG_COLOR['noire']
+
+        url = 'https://freeipapi.com/api/json/'
+
+        headers = {
+            'Accept': 'application/json',
+        }
+
+        response = requests.request(method='POST', url=url, headers=headers, timeout=self.timeout)
+
+        # Formatted output
+        decodedResponse = json.loads(response.text)
+        try:
+            status_code = response.status_code
+            if status_code == 429:
+                self.Irc.debug(f'Too Many Requests - The rate limit for the API has been exceeded.')
+                return None
+            elif status_code != 200:
+                print("salut salut")
+                return None
+
+            result = {
+                'countryCode': decodedResponse['countryCode'],
+                'isProxy': decodedResponse['isProxy']
+            }
+
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {result['countryCode']}")
+
+            response.close()
+
+            return result
+        except KeyError as ke:
+            self.Irc.debug(f"AbuseIpDb KeyError : {ke}")
+        return None
 
     def cmd(self, data:list) -> None:
 
