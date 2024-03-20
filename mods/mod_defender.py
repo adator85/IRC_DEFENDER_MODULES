@@ -537,6 +537,9 @@ class Defender():
 
     def scan_ports(self, remote_ip: str) -> None:
 
+        if remote_ip in self.Config.WHITELISTED_IP:
+            return None
+
         for port in self.Config.PORTS_TO_SCAN:
             newSocket = ''
             newSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -564,6 +567,10 @@ class Defender():
         pass
 
     def get_ports_connexion(self, remote_ip: str) -> list[int]:
+
+        if remote_ip in self.Config.WHITELISTED_IP:
+            return None
+
         connections = psutil.net_connections(kind='inet')
 
         matching_ports = [conn.raddr.port for conn in connections if conn.raddr and conn.raddr.ip == remote_ip]
@@ -581,6 +588,8 @@ class Defender():
             dict[str, any] | None: les informations du provider
             keys : 'score', 'country', 'isTor', 'totalReports'
         """
+        if remote_ip in self.Config.WHITELISTED_IP:
+            return None
         if self.defConfig['abuseipdb_scan'] == 0:
             return None
 
@@ -636,6 +645,8 @@ class Defender():
             dict[str, any] | None: les informations du provider
             keys : 'countryCode', 'isProxy'
         """
+        if remote_ip in self.Config.WHITELISTED_IP:
+            return None
         if self.defConfig['freeipapi_scan'] == 0:
             return None
 
@@ -693,16 +704,16 @@ class Defender():
                     self.reputation_first_connexion['score'] = cmd[3]
 
                     # self.Base.scan_ports(cmd[2])
-                    if self.defConfig['local_scan'] == 1:
+                    if self.defConfig['local_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
                         self.Base.create_thread(self.scan_ports, (cmd[2], ))
 
-                    if self.defConfig['psutil_scan'] == 1:
+                    if self.defConfig['psutil_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
                         self.Base.create_thread(self.get_ports_connexion, (cmd[2], ))
 
-                    if self.defConfig['abuseipdb_scan'] == 1:
+                    if self.defConfig['abuseipdb_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
                         self.Base.create_thread(self.abuseipdb_scan, (cmd[2], ))
 
-                    if self.defConfig['freeipapi_scan'] == 1:
+                    if self.defConfig['freeipapi_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
                         self.Base.create_thread(self.freeipapi_scan, (cmd[2], ))
                     # Possibilité de déclancher les bans a ce niveau.
                 except IndexError:
