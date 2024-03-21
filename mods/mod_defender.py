@@ -632,6 +632,11 @@ class Defender():
 
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}ABUSEIPDB_SCAN{color_black} ] : Connexion de {remote_ip} ==> Score: {str(result['score'])} | Country : {result['country']} | Tor : {str(result['isTor'])} | Total Reports : {str(result['totalReports'])}")
 
+            if result['isTor']:
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 1d This server do not allow Tor connexions {str(result['isTor'])}")
+            elif result['score'] >= 95:
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 1d You were banned from this server because your abuse score is = {str(result['score'])}")
+
             response.close()
 
             return result
@@ -684,6 +689,8 @@ class Defender():
 
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {result['countryCode']}")
 
+            if result['isProxy']:
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 1d This server do not allow proxy connexions {str(result['isProxy'])} - detected by freeipapi")
             response.close()
 
             return result
@@ -737,6 +744,9 @@ class Defender():
             }
 
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {remote_ip} ==> Host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {result['listed_by']}")
+
+            if result['listed']:
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 1d You connexion is listed as dangerous {str(result['listed'])} {str(result['listed_by'])} - detected by cloudfilt")
 
             response.close()
 
