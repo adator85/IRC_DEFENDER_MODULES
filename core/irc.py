@@ -38,7 +38,7 @@ class Irc:
                 self.commands.append(command)
 
         self.Base = Base(self.Config)
-        self.Base.create_thread(self.heartbeat, (self.beat, ))
+        self.Base.create_thread(func=self.heartbeat, func_args=(self.beat, ))
 
     ##############################################
     #               CONNEXION IRC                #
@@ -57,9 +57,9 @@ class Irc:
         self.IrcSocket.connect(connexion_information)
 
         # Créer un object ssl
-        ssl_context = self.__ssl_context()
-        ssl_connexion = ssl_context.wrap_socket(self.IrcSocket, server_hostname=self.Config.SERVEUR_HOSTNAME)
-        self.IrcSocket = ssl_connexion
+        # ssl_context = self.__ssl_context()
+        # ssl_connexion = ssl_context.wrap_socket(self.IrcSocket, server_hostname=self.Config.SERVEUR_HOSTNAME)
+        # self.IrcSocket = ssl_connexion
 
         return None
 
@@ -78,50 +78,66 @@ class Irc:
             self.load_existing_modules()                        # Charger les modules existant dans la base de données
 
             while self.signal:
-                if self.RESTART == 1:
-                    self.IrcSocket.shutdown(socket.SHUT_RDWR)
-                    self.IrcSocket.close()
+                try:
+                    if self.RESTART == 1:
+                        self.IrcSocket.shutdown(socket.SHUT_RDWR)
+                        self.IrcSocket.close()
 
-                    while self.IrcSocket.fileno() != -1:
-                        time.sleep(0.5)
-                        self.debug("--> En attente de la fermeture du socket ...")
+                        while self.IrcSocket.fileno() != -1:
+                            time.sleep(0.5)
+                            self.debug("--> En attente de la fermeture du socket ...")
 
-                    self.__create_socket()
-                    self.__link(self.IrcSocket)
-                    self.load_existing_modules()
-                    self.RESTART = 0
-                # 4072 max what the socket can grab
-                buffer_size = self.IrcSocket.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
-                # data = self.IrcSocket.recv(buffer_size).splitlines(True)
+                        self.__create_socket()
+                        self.__link(self.IrcSocket)
+                        self.load_existing_modules()
+                        self.RESTART = 0
+                    # 4072 max what the socket can grab
+                    buffer_size = self.IrcSocket.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+                    # data = self.IrcSocket.recv(buffer_size).splitlines(True)
 
-                data_in_bytes = self.IrcSocket.recv(buffer_size)
-                count_bytes = len(data_in_bytes)
+                    data_in_bytes = self.IrcSocket.recv(buffer_size)
 
-                while count_bytes > 4070:
-                    # If the received message is > 4070 then loop and add the value to the variable
-                    new_data = self.IrcSocket.recv(buffer_size)
-                    data_in_bytes += new_data
-                    count_bytes = len(new_data)
-                    # print("========================================================")
+                    count_bytes = len(data_in_bytes)
 
-                data = data_in_bytes.splitlines()
+                    while count_bytes > 4070:
+                        # If the received message is > 4070 then loop and add the value to the variable
+                        new_data = self.IrcSocket.recv(buffer_size)
+                        data_in_bytes += new_data
+                        count_bytes = len(new_data)
+                        # print("========================================================")
 
-                # print(f"{str(buffer_size)} - {str(len(data_in_bytes))}")
+                    data = data_in_bytes.splitlines()
+                    # print(f"{str(buffer_size)} - {str(len(data_in_bytes))}")
 
-                if not data:
-                    break
+                    if not data:
+                        break
 
-                self.send_response(data)
+                    self.send_response(data)
+                    if self.IrcSocket.fileno() == -1:
+                        print('restarting the socket')
+                        self.RESTART = 1
+
+                except ssl.SSLEOFError as soe:
+                    self.debug(f"SSLEOFError __connect_to_irc: {soe} - {data}")
+                except ssl.SSLError as se:
+                    self.debug(f"SSLError __connect_to_irc: {se} - {data}")
+                except OSError as oe:
+                    self.debug(f"SSLError __connect_to_irc: {oe} - {data}")
+                except Exception as e:
+                    self.debug(f"Exception __connect_to_irc: {e} - {data}")
 
             self.IrcSocket.shutdown(socket.SHUT_RDWR)
             self.IrcSocket.close()
+            self.debug("--> Fermeture de Defender ...")
 
         except AssertionError as ae:
             self.debug(f'Assertion error : {ae}')
         except ValueError as ve:
             self.debug(f'Value Error : {ve}')
-        except OSError as oe:
-            self.debug(f"OS Error : {oe}")
+        except ssl.SSLEOFError as soe:
+            self.debug(f"OS Error __connect_to_irc: {soe}")
+        except Exception as e:
+            self.debug(f"Exception: {e}")
 
     def __link(self, writer:socket.socket) -> None:
         """Créer le link et envoyer les informations nécessaires pour la 
@@ -180,8 +196,12 @@ class Irc:
             self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0],'replace'))
         except AssertionError as ae:
             self.debug(f"Assertion error : {ae}")
+        except ssl.SSLEOFError as soe:
+            self.debug(f"SSLEOFError send2socket: {soe} - {send_message}")
+        except ssl.SSLError as se:
+            self.debug(f"SSLError send2socket: {se} - {send_message}")
         except OSError as oe:
-            self.debug(f"OS Error : {oe}")
+            self.debug(f"OSError send2socket: {oe} - {send_message}")
 
     def send_response(self, responses:list[bytes]) -> None:
         try:
@@ -344,8 +364,8 @@ class Irc:
         except ModuleNotFoundError as moduleNotFound:
             self.debug(f"MODULE_NOT_FOUND: {moduleNotFound}")
             self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}MODULE_NOT_FOUND{self.Config.CONFIG_COLOR['noire']} ]: {moduleNotFound}")
-        except:
-            self.debug(f"Something went wrong with a module you want to load")
+        except Exception as e:
+            self.debug(f"Something went wrong with a module you want to load : {e}")
 
     def insert_db_uid(self, uid:str, nickname:str, username:str, hostname:str, umodes:str, vhost:str, isWebirc: bool) -> None:
 
@@ -603,10 +623,13 @@ class Irc:
             cmd_to_send:list[str] = data.copy()
             cmd = data.copy()
 
+            cmd_to_debug = data.copy()
+            cmd_to_debug.pop(0)
+
             if len(cmd) == 0 or len(cmd) == 1:
                 return False
 
-            self.debug(cmd)
+            self.debug(cmd_to_debug)
 
             match cmd[0]:
 
@@ -1028,7 +1051,7 @@ class Irc:
                     class_name = module_name.split('_')[1].capitalize()            # Nom de la class. exemple: Defender
 
                     if class_name in self.loaded_classes:
-
+                        self.loaded_classes[class_name].unload()
                         for level, command in self.loaded_classes[class_name].commands_level.items():
                             # Supprimer la commande de la variable commands
                             for c in self.loaded_classes[class_name].commands_level[level]:
@@ -1051,6 +1074,7 @@ class Irc:
                     class_name = module_name.split('_')[1].capitalize()                        # ==> Defender
 
                     if 'mods.' + module_name in sys.modules:
+                        self.loaded_classes[class_name].unload()
                         self.debug('Module Already Loaded ... reload the module ...')
                         the_module = sys.modules['mods.' + module_name]
                         importlib.reload(the_module)
@@ -1139,7 +1163,12 @@ class Irc:
                     self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :Aucun timers en cours d'execution")
 
             case 'show_threads':
-                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :{self.Base.running_threads}")
+
+                running_thread_name:list = []
+                for thread in self.Base.running_threads:
+                    running_thread_name.append(f"{thread.getName()} ({thread.is_alive()})")
+
+                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :{str(running_thread_name)}")
 
             case 'uptime':
                 uptime = self.get_defender_uptime()

@@ -153,9 +153,15 @@ class Base:
         except AssertionError as ae:
             self.__debug(f'Assertion Error -> {ae}')
 
-    def create_thread(self, func:object, func_args: tuple = ()) -> None:
+    def create_thread(self, func:object, func_args: tuple = (), run_once:bool = False) -> None:
         try:
             func_name = func.__name__
+
+            if run_once:
+                for thread in self.running_threads:
+                    if thread.getName() == func_name:
+                        return None
+
             # if func_name in self.running_threads:
             #     print(f"HeartBeat is running")
             #     return None
@@ -367,7 +373,7 @@ class Base:
             # Run Garbage Collector Timer
             self.garbage_collector_timer()
             self.garbage_collector_thread()
-            self.garbage_collector_sockets()
+            # self.garbage_collector_sockets()
             return None
 
         for key, value in self.periodic_func.items():

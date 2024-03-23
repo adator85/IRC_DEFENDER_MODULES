@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Union
-import re, socket, psutil, requests, json
+import re, socket, psutil, requests, json, time
 from core.irc import Irc
 
 #   Le module crée devra réspecter quelques conditions
@@ -10,7 +10,10 @@ from core.irc import Irc
 #           2 . Récuperer la configuration dans une variable
 #           3 . Définir et enregistrer les nouvelles commandes
 #           4 . Créer vos tables, en utilisant toujours le nom des votre classe en minuscule ==> defender_votre-table
-#       3. une methode _hcmds(self, user:str, cmd: list) devra toujours etre crée.
+#       3. Methode suivantes:
+#           cmd(self, data:list)
+#           _hcmds(self, user:str, cmd: list)
+#           unload(self)
 
 class Defender():
 
@@ -20,6 +23,19 @@ class Defender():
         self.Config = ircInstance.Config                                    # Ajouter la configuration a la classe ( Obligatoire )
         self.Base = ircInstance.Base                                        # Ajouter l'objet Base au module ( Obligatoire )
         self.timeout = self.Config.API_TIMEOUT                              # API Timeout
+
+        self.freeipapi_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec freeipapi
+        self.cloudfilt_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec cloudfilt
+        self.abuseipdb_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec abuseipdb
+        self.psutil_remote_ip:list    = []                                  # Liste qui va contenir les adresses ip a scanner avec psutil_scan
+        self.localscan_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec local_scan
+
+        self.abuseipdb_isRunning:bool = True
+        self.freeipapi_isRunning:bool = True
+        self.cloudfilt_isRunning:bool = True
+        self.psutil_isRunning:bool    = True
+        self.localscan_isRunning:bool = True
+        self.reputationTimer_isRunning:bool = True
 
         self.Irc.debug(f'Module {self.__class__.__name__} loaded ...')
 
@@ -51,6 +67,22 @@ class Defender():
                     self.Irc.commands_level[level].append(c)
                     self.Irc.commands.append(c)
 
+        return None
+
+    def unload(self) -> None:
+
+        self.freeipapi_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec freeipapi
+        self.cloudfilt_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec cloudfilt
+        self.abuseipdb_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec abuseipdb
+        self.psutil_remote_ip:list    = []                                  # Liste qui va contenir les adresses ip a scanner avec psutil_scan
+        self.localscan_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec local_scan
+
+        self.abuseipdb_isRunning:bool = False
+        self.freeipapi_isRunning:bool = False
+        self.cloudfilt_isRunning:bool = False
+        self.psutil_isRunning:bool    = False
+        self.localscan_isRunning:bool = False
+        self.reputationTimer_isRunning:bool = False
         return None
 
     def __create_tables(self) -> None:
@@ -122,6 +154,14 @@ class Defender():
 
         # Syncrhoniser la variable defConfig avec la configuration de la base de données.
         self.sync_db_configuration()
+
+        # Démarrer les threads pour démarrer les api
+        self.Base.create_thread(func=self.thread_freeipapi_scan)
+        self.Base.create_thread(func=self.thread_cloudfilt_scan)
+        self.Base.create_thread(func=self.thread_abuseipdb_scan)
+        self.Base.create_thread(func=self.thread_local_scan)
+        self.Base.create_thread(func=self.thread_psutil_scan)
+        self.Base.create_thread(func=self.thread_reputation_timer)
 
         return True
 
@@ -400,7 +440,7 @@ class Defender():
                 
                 self.Irc.debug(f"system_reputation : {jailed_nickname} à été capturé par le système de réputation")
                 # self.Irc.create_ping_timer(int(self.defConfig['reputation_timer']) * 60, 'Defender', 'system_reputation_timer')
-                self.Base.create_timer(int(self.defConfig['reputation_timer']) * 60, self.system_reputation_timer)
+                # self.Base.create_timer(int(self.defConfig['reputation_timer']) * 60, self.system_reputation_timer)
             else:
                 self.Irc.debug(f"system_reputation : {jailed_nickname} à été supprimé du système de réputation car connecté via WebIrc ou il est dans la 'Trusted list'")
                 self.delete_db_reputation(uid)
@@ -452,6 +492,16 @@ class Defender():
 
         except AssertionError as ae:
             self.Irc.debug(f'Assertion Error -> {ae}')
+
+    def thread_reputation_timer(self) -> None:
+        try:
+            while self.reputationTimer_isRunning:
+                self.system_reputation_timer()
+                time.sleep(5)
+
+            return None
+        except ValueError as ve:
+            self.Irc.debug(f"thread_reputation_timer Error : {ve}")
 
     def _execute_flood_action(self, action:str, channel:str) -> None:
         """DO NOT EXECUTE THIS FUNCTION WITHOUT THREADING
@@ -539,7 +589,11 @@ class Defender():
         return None
 
     def scan_ports(self, remote_ip: str) -> None:
+        """local_scan
 
+        Args:
+            remote_ip (str): _description_
+        """
         if remote_ip in self.Config.WHITELISTED_IP:
             return None
 
@@ -569,8 +623,34 @@ class Defender():
         
         pass
 
-    def get_ports_connexion(self, remote_ip: str) -> list[int]:
+    def thread_local_scan(self) -> None:
+        try:
+            while self.localscan_isRunning:
 
+                list_to_remove:list = []
+                for ip in self.localscan_remote_ip:
+                    self.scan_ports(ip)
+                    list_to_remove.append(ip)
+                    time.sleep(1)
+
+                for ip_to_remove in list_to_remove:
+                    self.localscan_remote_ip.remove(ip_to_remove)
+
+                time.sleep(1)
+
+            return None
+        except ValueError as ve:
+            self.Irc.debug(f"thread_local_scan Error : {ve}")
+
+    def get_ports_connexion(self, remote_ip: str) -> list[int]:
+        """psutil_scan
+
+        Args:
+            remote_ip (str): _description_
+
+        Returns:
+            list[int]: _description_
+        """
         if remote_ip in self.Config.WHITELISTED_IP:
             return None
 
@@ -580,6 +660,25 @@ class Defender():
         self.Irc.debug(f"Connexion of {remote_ip} using ports : {str(matching_ports)}")
 
         return matching_ports
+
+    def thread_psutil_scan(self) -> None:
+        try:
+            while self.psutil_isRunning:
+
+                list_to_remove:list = []
+                for ip in self.psutil_remote_ip:
+                    self.get_ports_connexion(ip)
+                    list_to_remove.append(ip)
+                    time.sleep(1)
+
+                for ip_to_remove in list_to_remove:
+                    self.psutil_remote_ip.remove(ip_to_remove)
+
+                time.sleep(1)
+
+            return None
+        except ValueError as ve:
+                self.Irc.debug(f"thread_psutil_scan Error : {ve}")
 
     def abuseipdb_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
         """Analyse l'ip avec AbuseIpDB
@@ -633,15 +732,38 @@ class Defender():
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}ABUSEIPDB_SCAN{color_black} ] : Connexion de {remote_ip} ==> Score: {str(result['score'])} | Country : {result['country']} | Tor : {str(result['isTor'])} | Total Reports : {str(result['totalReports'])}")
 
             if result['isTor']:
-                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 1d This server do not allow Tor connexions {str(result['isTor'])}")
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 30 This server do not allow Tor connexions {str(result['isTor'])} - Detected by Abuseipdb")
             elif result['score'] >= 95:
-                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 1d You were banned from this server because your abuse score is = {str(result['score'])}")
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 30 You were banned from this server because your abuse score is = {str(result['score'])} - Detected by Abuseipdb")
 
             response.close()
 
             return result
         except KeyError as ke:
             self.Irc.debug(f"AbuseIpDb KeyError : {ke}")
+        except requests.ReadTimeout as rt:
+            self.Irc.debug(f"AbuseIpDb Timeout : {rt}")
+        except requests.ConnectionError as ce:
+            self.Irc.debug(f"AbuseIpDb Connection Error : {ce}")
+
+    def thread_abuseipdb_scan(self) -> None:
+        try:
+            while self.abuseipdb_isRunning:
+
+                list_to_remove:list = []
+                for ip in self.abuseipdb_remote_ip:
+                    self.abuseipdb_scan(ip)
+                    list_to_remove.append(ip)
+                    time.sleep(1)
+
+                for ip_to_remove in list_to_remove:
+                    self.abuseipdb_remote_ip.remove(ip_to_remove)
+
+                time.sleep(1)
+
+            return None
+        except ValueError as ve:
+                self.Irc.debug(f"thread_abuseipdb_scan Error : {ve}")
 
     def freeipapi_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
         """Analyse l'ip avec Freeipapi
@@ -687,15 +809,34 @@ class Defender():
                 'isProxy': decodedResponse['isProxy'] if 'isProxy' in decodedResponse else None
             }
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {result['countryCode']}")
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {str(result['countryCode'])}")
 
             if result['isProxy']:
-                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 1d This server do not allow proxy connexions {str(result['isProxy'])} - detected by freeipapi")
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 30 This server do not allow proxy connexions {str(result['isProxy'])} - detected by freeipapi")
             response.close()
 
             return result
         except KeyError as ke:
             self.Irc.debug(f"FREEIPAPI_SCAN KeyError : {ke}")
+
+    def thread_freeipapi_scan(self) -> None:
+        try:
+            while self.freeipapi_isRunning:
+
+                list_to_remove:list = []
+                for ip in self.freeipapi_remote_ip:
+                    self.freeipapi_scan(ip)
+                    list_to_remove.append(ip)
+                    time.sleep(1)
+
+                for ip_to_remove in list_to_remove:
+                    self.freeipapi_remote_ip.remove(ip_to_remove)
+
+                time.sleep(1)
+
+            return None
+        except ValueError as ve:
+            self.Irc.debug(f"thread_freeipapi_scan Error : {ve}")
 
     def cloudfilt_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
         """Analyse l'ip avec cloudfilt
@@ -743,10 +884,10 @@ class Defender():
                 'host': decodedResponse['host'] if 'host' in decodedResponse else None
             }
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {remote_ip} ==> Host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {result['listed_by']}")
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {str(remote_ip)} ==> Host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {str(result['listed_by'])}")
 
             if result['listed']:
-                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 1d You connexion is listed as dangerous {str(result['listed'])} {str(result['listed_by'])} - detected by cloudfilt")
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 30 You connexion is listed as dangerous {str(result['listed'])} {str(result['listed_by'])} - detected by cloudfilt")
 
             response.close()
 
@@ -754,6 +895,25 @@ class Defender():
         except KeyError as ke:
             self.Irc.debug(f"CLOUDFILT_SCAN KeyError : {ke}")
         return None
+
+    def thread_cloudfilt_scan(self) -> None:
+        try:
+            while self.cloudfilt_isRunning:
+
+                list_to_remove:list = []
+                for ip in self.cloudfilt_remote_ip:
+                    self.cloudfilt_scan(ip)
+                    list_to_remove.append(ip)
+                    time.sleep(1)
+
+                for ip_to_remove in list_to_remove:
+                    self.cloudfilt_remote_ip.remove(ip_to_remove)
+
+                time.sleep(1)
+
+            return None
+        except ValueError as ve:
+            self.Irc.debug(f"Thread_cloudfilt_scan Error : {ve}")
 
     def cmd(self, data:list) -> None:
 
@@ -773,19 +933,20 @@ class Defender():
 
                     # self.Base.scan_ports(cmd[2])
                     if self.defConfig['local_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.Base.create_thread(self.scan_ports, (cmd[2], ))
+                        self.localscan_remote_ip.append(cmd[2])
 
                     if self.defConfig['psutil_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.Base.create_thread(self.get_ports_connexion, (cmd[2], ))
+                        self.psutil_remote_ip.append(cmd[2])
 
                     if self.defConfig['abuseipdb_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.Base.create_thread(self.abuseipdb_scan, (cmd[2], ))
+                        self.abuseipdb_remote_ip.append(cmd[2])
 
                     if self.defConfig['freeipapi_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.Base.create_thread(self.freeipapi_scan, (cmd[2], ))
+                        self.freeipapi_remote_ip.append(cmd[2])
 
                     if self.defConfig['cloudfilt_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.Base.create_thread(self.cloudfilt_scan, (cmd[2], ))
+                        self.cloudfilt_remote_ip.append(cmd[2])
+
                     # Possibilité de déclancher les bans a ce niveau.
                 except IndexError:
                     self.Irc.debug(f'cmd reputation: index error')
@@ -870,19 +1031,19 @@ class Defender():
                 # self.Base.scan_ports(cmd[7])
                 cmd.pop(0)
                 if self.defConfig['local_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.Base.create_thread(self.scan_ports, (cmd[7], ))
+                    self.localscan_remote_ip.append(cmd[7])
 
                 if self.defConfig['psutil_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.Base.create_thread(self.get_ports_connexion, (cmd[7], ))
+                    self.psutil_remote_ip.append(cmd[7])
 
                 if self.defConfig['abuseipdb_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.Base.create_thread(self.abuseipdb_scan, (cmd[7], ))
+                    self.abuseipdb_remote_ip.append(cmd[7])
 
                 if self.defConfig['freeipapi_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.Base.create_thread(self.freeipapi_scan, (cmd[7], ))
+                    self.freeipapi_remote_ip.append[cmd[7]]
 
                 if self.defConfig['cloudfilt_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.Base.create_thread(self.cloudfilt_scan, (cmd[7], ))
+                    self.cloudfilt_remote_ip.append(cmd[7])
 
             case 'NICK':
                 # :0010BS24L NICK [NEWNICK] 1697917711
@@ -1175,12 +1336,15 @@ class Defender():
                                     self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_green}PROXY_SCAN {option.upper()}{color_black} ] : Already activated")
                                     return None
                                 self.update_db_configuration(option, 1)
+
                                 self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_green}PROXY_SCAN {option.upper()}{color_black} ] : Activated by {fromuser}")
                             elif action == 'off':
                                 if self.defConfig[option] == 0:
                                     self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_red}PROXY_SCAN {option.upper()}{color_black} ] : Already Deactivated")
                                     return None
+
                                 self.update_db_configuration(option, 0)
+
                                 self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {color_red}PROXY_SCAN {option.upper()}{color_black} ] : Deactivated by {fromuser}")
 
                         case 'cloudfilt_scan':
