@@ -66,6 +66,10 @@ class Test():
         self.core.db_execute_query(self.session, table_logs)
         return None
 
+    def unload(self) -> None:
+
+        return None
+
     def _hcmds(self, user:str, cmd: list) -> None:
 
         command = cmd[0].lower()

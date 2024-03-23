@@ -1132,6 +1132,9 @@ class Irc:
                 self.db_uid.clear()                     #Vider UID_DB
                 self.db_chan = []                       #Vider les salons
 
+                for class_name in self.loaded_classes:
+                    self.loaded_classes[class_name].unload()
+
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : Redémarrage du service {dnickname}')
                 self.send2socket(f':{self.Config.SERVEUR_LINK} SQUIT {self.Config.SERVEUR_LINK} :{final_reason}')
                 self.debug(f'Redémarrage du server {dnickname}')

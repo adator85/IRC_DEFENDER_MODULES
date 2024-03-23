@@ -732,9 +732,9 @@ class Defender():
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}ABUSEIPDB_SCAN{color_black} ] : Connexion de {remote_ip} ==> Score: {str(result['score'])} | Country : {result['country']} | Tor : {str(result['isTor'])} | Total Reports : {str(result['totalReports'])}")
 
             if result['isTor']:
-                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 30 This server do not allow Tor connexions {str(result['isTor'])} - Detected by Abuseipdb")
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} {self.Config.GLINE_DURATION} This server do not allow Tor connexions {str(result['isTor'])} - Detected by Abuseipdb")
             elif result['score'] >= 95:
-                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 30 You were banned from this server because your abuse score is = {str(result['score'])} - Detected by Abuseipdb")
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} {self.Config.GLINE_DURATION} You were banned from this server because your abuse score is = {str(result['score'])} - Detected by Abuseipdb")
 
             response.close()
 
@@ -812,7 +812,7 @@ class Defender():
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {str(result['countryCode'])}")
 
             if result['isProxy']:
-                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 30 This server do not allow proxy connexions {str(result['isProxy'])} - detected by freeipapi")
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} {self.Config.GLINE_DURATION} This server do not allow proxy connexions {str(result['isProxy'])} - detected by freeipapi")
             response.close()
 
             return result
@@ -887,7 +887,7 @@ class Defender():
             self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {str(remote_ip)} ==> Host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {str(result['listed_by'])}")
 
             if result['listed']:
-                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} 30 You connexion is listed as dangerous {str(result['listed'])} {str(result['listed_by'])} - detected by cloudfilt")
+                self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} {self.Config.GLINE_DURATION} You connexion is listed as dangerous {str(result['listed'])} {str(result['listed_by'])} - detected by cloudfilt")
 
             response.close()
 

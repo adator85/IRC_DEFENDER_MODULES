@@ -42,6 +42,7 @@ class Config:
 
     PORTS_TO_SCAN = [3028, 8080, 1080, 1085, 4145, 9050]    # Liste des ports a scanné pour une detection de proxy
     WHITELISTED_IP = ['127.0.0.1']                          # IP a ne pas scanner
+    GLINE_DURATION = '1d'                                   # La durée du gline
 
     DEBUG = 0                                               # Afficher l'ensemble des messages du serveurs dans la console
 
