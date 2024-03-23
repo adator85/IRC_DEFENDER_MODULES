@@ -52,13 +52,14 @@ class Irc:
 
     def __create_socket(self) -> None:
 
-        self.IrcSocket: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.IrcSocket:socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connexion_information = (self.Config.SERVEUR_IP, self.Config.SERVEUR_PORT)
         self.IrcSocket.connect(connexion_information)
 
         # Créer un object ssl
         # ssl_context = self.__ssl_context()
-        # ssl_connexion = ssl_context.wrap_socket(self.IrcSocket, server_hostname=self.Config.SERVEUR_HOSTNAME)
+        # ssl_connexion = ssl_context.wrap_socket(s, server_hostname=self.Config.SERVEUR_HOSTNAME)
+        # ssl_connexion.connect(connexion_information)
         # self.IrcSocket = ssl_connexion
 
         return None
