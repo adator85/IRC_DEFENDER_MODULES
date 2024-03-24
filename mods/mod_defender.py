@@ -57,9 +57,6 @@ class Defender():
 
         Args:
             commands (list): Liste des commandes du module
-
-        Returns:
-            None: Aucun retour attendu
         """
         for level, com in commands.items():
             for c in commands[level]:
@@ -70,10 +67,12 @@ class Defender():
         return None
 
     def unload(self) -> None:
-
+        """Cette methode sera executée a chaque désactivation ou 
+        rechargement de module
+        """
+        self.abuseipdb_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec abuseipdb
         self.freeipapi_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec freeipapi
         self.cloudfilt_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec cloudfilt
-        self.abuseipdb_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec abuseipdb
         self.psutil_remote_ip:list    = []                                  # Liste qui va contenir les adresses ip a scanner avec psutil_scan
         self.localscan_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec local_scan
 
@@ -394,7 +393,7 @@ class Defender():
 
         uptime = current_datetime - connected_time
         convert_to_minutes = uptime.seconds / 60
-        uptime_minutes = round(number=convert_to_minutes, ndigits=0)
+        uptime_minutes = round(number=convert_to_minutes, ndigits=2)
 
         return uptime_minutes
 
@@ -453,6 +452,7 @@ class Defender():
             reputation_flag = int(self.defConfig['reputation'])
             reputation_timer = int(self.defConfig['reputation_timer'])
             reputation_seuil = self.defConfig['reputation_seuil']
+            ban_all_chan = self.Base.int_if_possible(self.defConfig['reputation_ban_all_chan'])
             service_id = self.Config.SERVICE_ID
             dchanlog = self.Config.SERVICE_CHANLOG
             color_red = self.Config.CONFIG_COLOR['rouge']
@@ -469,21 +469,23 @@ class Defender():
 
             for uid in self.db_reputation:
                 if not self.db_reputation[uid]['isWebirc']: # Si il ne vient pas de WebIRC
-                    self.Irc.debug(f"Nickname: {self.db_reputation[uid]['nickname']} | uptime: {self.get_user_uptime_in_minutes(uid)} | reputation time: {reputation_timer}")
+                    # self.Irc.debug(f"Nickname: {self.db_reputation[uid]['nickname']} | uptime: {self.get_user_uptime_in_minutes(uid)} | reputation time: {reputation_timer}")
                     if self.get_user_uptime_in_minutes(uid) >= reputation_timer and int(self.db_reputation[uid]['score']) <= int(reputation_seuil):
-                        self.Irc.debug('-----'*20)
                         self.Irc.send2socket(f":{service_id} PRIVMSG {dchanlog} :[{color_red} REPUTATION {color_black}] : Action sur {self.db_reputation[uid]['nickname']} aprés {str(reputation_timer)} minutes d'inactivité")
                         # if not system_reputation_timer_action(cglobal['reputation_timer_action'], uid, self.db_reputation[uid]['nickname']):
                         #     return False
                         self.Irc.send2socket(f":{service_id} KILL {self.db_reputation[uid]['nickname']} After {str(reputation_timer)} minutes of inactivity you should reconnect and type the password code ")
 
-                        self.Irc.debug(f"Action sur {self.db_reputation[uid]['nickname']} aprés {str(reputation_timer)} minutes d'inactivité")
+                        self.Irc.debug('-----'*20)
+                        self.Irc.debug(f"Nickname: {self.db_reputation[uid]['nickname']} KILLED after {str(reputation_timer)} minutes of inactivity")
+                        self.Irc.debug('-----'*20)
+
                         uid_to_clean.append(uid)
 
             for uid in uid_to_clean:
                 # Suppression des éléments dans {UID_DB} et {REPUTATION_DB}
                 for chan in self.Irc.db_chan:
-                    if chan != salon_jail:
+                    if chan != salon_jail and ban_all_chan == 1:
                         self.Irc.send2socket(f":{service_id} MODE {chan} -b {self.db_reputation[uid]['nickname']}!*@*")
 
                 # Lorsqu'un utilisateur quitte, il doit être supprimé de {UID_DB}.
@@ -599,7 +601,7 @@ class Defender():
 
         for port in self.Config.PORTS_TO_SCAN:
             newSocket = ''
-            newSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            newSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM or socket.SOCK_NONBLOCK)
             newSocket.settimeout(0.5)
             try:
                 connection = (remote_ip, self.Base.int_if_possible(port))
@@ -611,11 +613,11 @@ class Defender():
                 newSocket.shutdown(socket.SHUT_RDWR)
                 newSocket.close()
             except (socket.timeout, ConnectionRefusedError):
-                self.Irc.debug(f"Le port {str(port)} est fermé")
+                self.Irc.debug(f"Le port {remote_ip}:{str(port)} est fermé")
             except AttributeError as ae:
-                self.Irc.debug(f"AttributeError : {ae}")
+                self.Irc.debug(f"AttributeError ({remote_ip}): {ae}")
             except socket.gaierror as err:
-                self.Irc.debug(f"Address Info Error: {err}")
+                self.Irc.debug(f"Address Info Error ({remote_ip}): {err}")
             finally:
                 # newSocket.shutdown(socket.SHUT_RDWR)
                 newSocket.close()
@@ -931,6 +933,9 @@ class Defender():
                     self.reputation_first_connexion['ip'] = cmd[2]
                     self.reputation_first_connexion['score'] = cmd[3]
 
+                    if not self.Base.is_valid_ip(cmd[2]):
+                        return None
+
                     # self.Base.scan_ports(cmd[2])
                     if self.defConfig['local_scan'] == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
                         self.localscan_remote_ip.append(cmd[2])
@@ -1030,6 +1035,10 @@ class Defender():
             case 'SLOG':
                 # self.Base.scan_ports(cmd[7])
                 cmd.pop(0)
+
+                if not self.Base.is_valid_ip(cmd[7]):
+                    return None
+
                 if self.defConfig['local_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
                     self.localscan_remote_ip.append(cmd[7])
 
@@ -1040,7 +1049,7 @@ class Defender():
                     self.abuseipdb_remote_ip.append(cmd[7])
 
                 if self.defConfig['freeipapi_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.freeipapi_remote_ip.append[cmd[7]]
+                    self.freeipapi_remote_ip.append(cmd[7])
 
                 if self.defConfig['cloudfilt_scan'] == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
                     self.cloudfilt_remote_ip.append(cmd[7])
@@ -1070,6 +1079,7 @@ class Defender():
             case 'QUIT':
                 # :001N1WD7L QUIT :Quit: free_znc_1
                 cmd.pop(0)
+                ban_all_chan = self.Base.int_if_possible(self.defConfig['reputation_ban_all_chan'])
                 user_id = str(cmd[0]).replace(':','')
                 final_UID = user_id
 
@@ -1079,7 +1089,7 @@ class Defender():
                 if final_UID in self.db_reputation:
                     final_nickname = self.db_reputation[user_id]['nickname']
                     for chan in self.Irc.db_chan:
-                        if chan != jail_salon:
+                        if chan != jail_salon and ban_all_chan == 1:
                             self.Irc.send2socket(f":{service_id} MODE {chan} -b {final_nickname}!*@*")
                     self.delete_db_reputation(final_UID)
 

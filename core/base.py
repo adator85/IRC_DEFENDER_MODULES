@@ -1,4 +1,4 @@
-import time, threading, os, random, socket, hashlib
+import time, threading, os, random, socket, hashlib, ipaddress
 from datetime import datetime
 from sqlalchemy import create_engine, Engine, Connection, CursorResult
 from sqlalchemy.sql import text
@@ -179,7 +179,7 @@ class Base:
         """Methode qui supprime les timers qui ont finis leurs job
         """
         try:
-            self.__debug(f"=======> Checking for Timers to stop")
+            # self.__debug(f"=======> Checking for Timers to stop")
             # print(f"{self.running_timers}")
             for timer in self.running_timers:
                 if not timer.is_alive():
@@ -196,7 +196,7 @@ class Base:
         """Methode qui supprime les threads qui ont finis leurs job
         """
         try:
-            self.__debug(f"=======> Checking for Threads to stop")
+            # self.__debug(f"=======> Checking for Threads to stop")
             for thread in self.running_threads:
                 if thread.getName() != 'heartbeat':
                     if not thread.is_alive():
@@ -209,7 +209,7 @@ class Base:
 
     def garbage_collector_sockets(self) -> None:
 
-        self.__debug(f"=======> Checking for Sockets to stop")
+        # self.__debug(f"=======> Checking for Sockets to stop")
         for soc in self.running_sockets:
             while soc.fileno() != -1:
                 self.__debug(soc.fileno())
@@ -357,6 +357,17 @@ class Base:
             return value
         except TypeError:
             return value
+
+    def is_valid_ip(self, ip_to_control:str) -> bool:
+
+        try:
+            if ip_to_control in self.Config.WHITELISTED_IP:
+                return False
+
+            ipaddress.ip_address(ip_to_control)
+            return True
+        except ValueError:
+            return False
 
     def get_random(self, lenght:int) -> str:
         """

@@ -18,6 +18,7 @@ class Config:
     SERVEUR_PORT = 6666                                     # Port du link
     SERVEUR_PASSWORD = 'your link password'                 # Mot de passe du link (Privilégiez argon2 sur Unrealircd)
     SERVEUR_ID = '002'                                      # SID (identification) du bot en tant que Services
+    SERVEUR_SSL = False                                      # Activer / Desactiver la connexion SSL
 
     SERVICE_NICKNAME = 'BotName'                            # Nick du bot sur IRC
     SERVICE_REALNAME = 'BotRealname'                        # Realname du bot

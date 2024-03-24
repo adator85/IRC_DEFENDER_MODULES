@@ -19,7 +19,8 @@ class Irc:
 
         self.INIT = 1                                       # Variable d'intialisation | 1 -> indique si le programme est en cours d'initialisation
         self.RESTART = 0                                    # Variable pour le redemarrage du bot | 0 -> indique que le programme n'es pas en cours de redemarrage
-        self.CHARSET = ['utf-8', 'iso-8859-1']              # Charset utiliser pour décoder/encoder les messages 
+        self.CHARSET = ['utf-8', 'iso-8859-1']              # Charset utiliser pour décoder/encoder les messages
+        self.SSL_VERSION = None                             # Version SSL
 
         self.Config = Config()
 
@@ -52,20 +53,35 @@ class Irc:
 
     def __create_socket(self) -> None:
 
-        self.IrcSocket:socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connexion_information = (self.Config.SERVEUR_IP, self.Config.SERVEUR_PORT)
-        self.IrcSocket.connect(connexion_information)
+        try:
+            soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM or socket.SOCK_NONBLOCK)
+            connexion_information = (self.Config.SERVEUR_IP, self.Config.SERVEUR_PORT)
 
-        # Créer un object ssl
-        # ssl_context = self.__ssl_context()
-        # ssl_connexion = ssl_context.wrap_socket(s, server_hostname=self.Config.SERVEUR_HOSTNAME)
-        # ssl_connexion.connect(connexion_information)
-        # self.IrcSocket = ssl_connexion
+            if self.Config.SERVEUR_SSL:
+                # Créer un object ssl
 
-        return None
+                ssl_context = self.__ssl_context()
+                ssl_connexion = ssl_context.wrap_socket(soc, server_hostname=self.Config.SERVEUR_HOSTNAME)
+                ssl_connexion.connect(connexion_information)
+                self.IrcSocket:ssl.SSLSocket = ssl_connexion
+                self.debug(f"Connexion en mode SSL : Version = {self.IrcSocket.version()}")
+                self.SSL_VERSION = self.IrcSocket.version()
+            else:
+                soc.connect(connexion_information)
+                self.IrcSocket:socket = soc
+                self.debug("Connexion en mode normal")
+
+            return None
+
+        except ssl.SSLEOFError as soe:
+            self.debug(f"SSLEOFError __create_socket: {soe} - {self.IrcSocket.fileno()}")
+        except ssl.SSLError as se:
+            self.debug(f"SSLError __create_socket: {se} - {self.IrcSocket.fileno()}")
+        except OSError as oe:
+            self.debug(f"OSError __create_socket: {oe} - {self.IrcSocket.fileno()}")
 
     def __ssl_context(self) -> ssl.SSLContext:
-        ctx = ssl.create_default_context()
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
 
@@ -114,9 +130,6 @@ class Irc:
                         break
 
                     self.send_response(data)
-                    if self.IrcSocket.fileno() == -1:
-                        print('restarting the socket')
-                        self.RESTART = 1
 
                 except ssl.SSLEOFError as soe:
                     self.debug(f"SSLEOFError __connect_to_irc: {soe} - {data}")
@@ -124,8 +137,8 @@ class Irc:
                     self.debug(f"SSLError __connect_to_irc: {se} - {data}")
                 except OSError as oe:
                     self.debug(f"SSLError __connect_to_irc: {oe} - {data}")
-                except Exception as e:
-                    self.debug(f"Exception __connect_to_irc: {e} - {data}")
+                # except Exception as e:
+                #     self.debug(f"Exception __connect_to_irc: {e} - {data}")
 
             self.IrcSocket.shutdown(socket.SHUT_RDWR)
             self.IrcSocket.close()
@@ -137,8 +150,8 @@ class Irc:
             self.debug(f'Value Error : {ve}')
         except ssl.SSLEOFError as soe:
             self.debug(f"OS Error __connect_to_irc: {soe}")
-        except Exception as e:
-            self.debug(f"Exception: {e}")
+        # except Exception as e:
+        #     self.debug(f"Exception: {e}")
 
     def __link(self, writer:socket.socket) -> None:
         """Créer le link et envoyer les informations nécessaires pour la 
@@ -187,7 +200,9 @@ class Irc:
             string (Str): contient la commande à envoyer au serveur.
         """
         try:
-            self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0]))
+            with self.Base.lock:
+                # print(f">{str(send_message)}")
+                self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0]))
 
         except UnicodeDecodeError:
             self.debug('Write Decode impossible try iso-8859-1')
@@ -698,6 +713,8 @@ class Irc:
                             print(f"#               SERVICE CONNECTE                ")
                             print(f"# SERVEUR  :    {self.Config.SERVEUR_IP}        ")
                             print(f"# PORT     :    {self.Config.SERVEUR_PORT}      ")
+                            print(f"# SSL      :    {self.Config.SERVEUR_SSL}       ")
+                            print(f"# SSL VER  :    {self.SSL_VERSION}              ")
                             print(f"# NICKNAME :    {self.Config.SERVICE_NICKNAME}  ")
                             print(f"# CHANNEL  :    {self.Config.SERVICE_CHANLOG}   ")
                             print(f"# VERSION  :    {self.Config.DEFENDER_VERSION}  ")
