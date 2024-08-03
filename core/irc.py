@@ -758,6 +758,9 @@ class Irc:
                             self.Base.logs.info(f"# CHANNEL  :    {self.Config.SERVICE_CHANLOG}   ")
                             self.Base.logs.info(f"# VERSION  :    {version}                       ")
                             self.Base.logs.info(f"################################################")
+                            
+                            if self.Base.check_for_new_version():
+                                self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} : New Version available {version}")
 
                         # Initialisation terminé aprés le premier PING
                         self.INIT = 0
