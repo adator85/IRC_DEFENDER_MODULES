@@ -3,7 +3,6 @@ from ssl import SSLSocket
 from datetime import datetime, timedelta
 from typing import Union
 from core.configuration import Config
-from core.sys_configuration import SysConfig
 from core.base import Base
 
 class Irc:
@@ -26,11 +25,10 @@ class Irc:
         self.SSL_VERSION = None                             # Version SSL
 
         self.Config = Config()
-        self.SysConfig = SysConfig()
 
         # Liste des commandes internes du bot
         self.commands_level = {
-            0: ['help', 'auth', 'copyright'],
+            0: ['help', 'auth', 'copyright','checkversion'],
             1: ['load','reload','unload', 'deauth', 'uptime'],
             2: ['show_modules', 'show_timers', 'show_threads', 'sentinel'],
             3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
@@ -183,7 +181,7 @@ class Irc:
             sid = self.Config.SERVEUR_ID
             service_id = self.Config.SERVICE_ID
 
-            version = self.SysConfig.DEFENDER_VERSION
+            version = self.Base.DEFENDER_VERSION
             unixtime = self.Base.get_unixtime()
 
             # Envoyer un message d'identification
@@ -631,12 +629,13 @@ class Irc:
 
     def debug(self, debug_msg:str) -> None:
 
-        if self.Config.DEBUG == 1:
-            if type(debug_msg) == list:
-                if debug_msg[0] != 'PING':
-                    print(f"[{self.Base.get_datetime()}] - {debug_msg}")
-            else:
-                print(f"[{self.Base.get_datetime()}] - {debug_msg}")
+        # if self.Config.DEBUG == 1:
+        #     if type(debug_msg) == list:
+        #         if debug_msg[0] != 'PING':
+        #             print(f"[{self.Base.get_datetime()}] - {debug_msg}")
+        #     else:
+        #         
+        print(f"[{self.Base.get_datetime()}] - {debug_msg}")
 
         return None
 
@@ -731,6 +730,11 @@ class Irc:
                     hsid = str(cmd[0]).replace(':','')
                     if hsid == self.HSID:
                         if self.INIT == 1:
+                            if self.Base.check_for_new_version():
+                                version = f'{self.Base.DEFENDER_VERSION} >>> {self.Base.LATEST_DEFENDER_VERSION}'
+                            else:
+                                version = f'{self.Base.DEFENDER_VERSION}'
+
                             self.send2socket(f"MODE {self.Config.SERVICE_NICKNAME} +B")
                             self.send2socket(f"JOIN {self.Config.SERVICE_CHANLOG}")
                             print(f"################### DEFENDER ###################")
@@ -741,7 +745,7 @@ class Irc:
                             print(f"# SSL VER  :    {self.SSL_VERSION}              ")
                             print(f"# NICKNAME :    {self.Config.SERVICE_NICKNAME}  ")
                             print(f"# CHANNEL  :    {self.Config.SERVICE_CHANLOG}   ")
-                            print(f"# VERSION  :    {self.SysConfig.DEFENDER_VERSION}  ")
+                            print(f"# VERSION  :    {version}                       ")
                             print(f"################################################")
 
                             self.Base.logs.info(f"################### DEFENDER ###################")
@@ -752,7 +756,7 @@ class Irc:
                             self.Base.logs.info(f"# SSL VER  :    {self.SSL_VERSION}              ")
                             self.Base.logs.info(f"# NICKNAME :    {self.Config.SERVICE_NICKNAME}  ")
                             self.Base.logs.info(f"# CHANNEL  :    {self.Config.SERVICE_CHANLOG}   ")
-                            self.Base.logs.info(f"# VERSION  :    {self.SysConfig.DEFENDER_VERSION}  ")
+                            self.Base.logs.info(f"# VERSION  :    {version}                       ")
                             self.Base.logs.info(f"################################################")
 
                         # Initialisation terminé aprés le premier PING
@@ -842,7 +846,7 @@ class Irc:
                             arg = convert_to_string.split()
                             arg.remove(f':{self.Config.SERVICE_PREFIX}')
                             if not arg[0].lower() in self.commands:
-                                self.debug(f"This command {arg[0]} is not available")
+                                self.Base.logs.debug(f"This command {arg[0]} is not available")
                                 return False
 
                             cmd_to_send = convert_to_string.replace(':','')
@@ -862,7 +866,7 @@ class Irc:
 
                                 # Réponse a un CTCP VERSION
                                 if arg[0] == '\x01VERSION\x01':
-                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01VERSION Service {self.Config.SERVICE_NICKNAME} V{self.SysConfig.DEFENDER_VERSION}\x01')
+                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01VERSION Service {self.Config.SERVICE_NICKNAME} V{self.Base.DEFENDER_VERSION}\x01')
                                     return False
 
                                 # Réponse a un TIME
@@ -1241,7 +1245,7 @@ class Irc:
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : {uptime}')
 
             case 'copyright':
-                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.SysConfig.DEFENDER_VERSION} Developped by adator® and dktmb® #')
+                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Base.DEFENDER_VERSION} Developped by adator® and dktmb® #')
 
             case 'sentinel':
                 # .sentinel on
@@ -1258,6 +1262,14 @@ class Irc:
                     for chan in self.db_chan:
                         if not chan in channel_to_dont_quit:
                             self.send2socket(f":{service_id} PART {chan}")
+
+            case 'checkversion':
+
+                if self.Base.check_for_new_version():
+                    self.send2socket(f':{dnickname} NOTICE {fromuser} : New Version available : {self.Base.DEFENDER_VERSION} >>> {self.Base.LATEST_DEFENDER_VERSION}')
+                else:
+                    self.send2socket(f':{dnickname} NOTICE {fromuser} : You have the latest version of defender')
+                pass
 
             case _:
                 pass
