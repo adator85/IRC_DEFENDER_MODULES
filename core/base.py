@@ -3,7 +3,6 @@ from datetime import datetime
 from sqlalchemy import create_engine, Engine, Connection, CursorResult
 from sqlalchemy.sql import text
 from core.configuration import Config
-from core.sys_configuration import SysConfig
 
 class Base:
 
@@ -17,13 +16,16 @@ class Base:
         'modules': 'sys_modules'
     }
 
+    DEFENDER_VERSION = ''                                   # MAJOR.MINOR.BATCH
+    LATEST_DEFENDER_VERSION = ''                            # Latest Version of Defender in git
+    DEFENDER_DB_PATH = 'db' + os.sep                        # Séparateur en fonction de l'OS
+    DEFENDER_DB_NAME = 'defender'                           # Le nom de la base de données principale
+
     def __init__(self, Config: Config) -> None:
 
         self.Config = Config                                    # Assigner l'objet de configuration
-        self.SysConfig = SysConfig()                            # Importer les information pour le systeme
         self.init_log_system()                                  # Demarrer le systeme de log
-
-        self.get_latest_defender_version()
+        self.check_for_new_version()                            # Verifier si une nouvelle version est disponible
 
         self.running_timers:list[threading.Timer] = []          # Liste des timers en cours
         self.running_threads:list[threading.Thread] = []        # Liste des threads en cours
@@ -37,25 +39,70 @@ class Base:
 
         self.db_create_first_admin()                            # Créer un nouvel admin si la base de données est vide
 
-    def get_latest_defender_version(self) -> None:
+    def __set_current_defender_version(self) -> None:
+        """This will put the current version of Defender
+        located in version.json
+        """
+
+        version_filename = f'.{os.sep}version.json'
+        with open(version_filename, 'r') as version_data:
+            current_version:dict[str, str] = json.load(version_data)
+
+        self.DEFENDER_VERSION = current_version["version"]
+
+        return None
+
+    def __get_latest_defender_version(self) -> None:
         try:
-            #token = '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'
-            token = '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'
-            json_url = f'https://github.com/adator85/IRC_DEFENDER_MODULES/blob/e27a027ae99a6c11171635b2a120803e8682aac6/version.json'
+            token = ''
+            json_url = f'https://raw.githubusercontent.com/adator85/IRC_DEFENDER_MODULES/main/version.json'
             headers = {
                 'Authorization': f'token {token}',
                 'Accept': 'application/vnd.github.v3.raw'  # Indique à GitHub que nous voulons le contenu brut du fichier
             }
-            response = requests.get(json_url)
+
+            if token == '':
+                response = requests.get(json_url)
+            else:
+                response = requests.get(json_url, headers=headers)
+
             response.raise_for_status()  # Vérifie si la requête a réussi
             json_response:dict = response.json()
-            self.SysConfig.LATEST_DEFENDER_VERSION = json_response["version"]
+            self.LATEST_DEFENDER_VERSION = json_response["version"]
 
             return None
         except requests.HTTPError as err:
             self.logs.error(f'Github not available to fetch latest version: {err}')
         except:
             self.logs.warning(f'Github not available to fetch latest version')
+
+    def check_for_new_version(self) -> bool:
+
+        # Assigner la version actuelle de Defender
+        self.__set_current_defender_version() 
+        # Récuperer la dernier version disponible dans github
+        self.__get_latest_defender_version()
+
+        isNewVersion = False
+        latest_version = self.LATEST_DEFENDER_VERSION
+        current_version = self.DEFENDER_VERSION
+        
+        curr_major, curr_minor, curr_patch = current_version.split('.')
+        last_major, last_minor, last_patch = latest_version.split('.')
+
+        if last_major > curr_major:
+            self.logs.info(f'New version available: {current_version} >>> {latest_version}')
+            isNewVersion = True
+        elif last_major == curr_major and last_minor > curr_minor:
+            self.logs.info(f'New version available: {current_version} >>> {latest_version}')
+            isNewVersion = True
+        elif last_major == curr_major and last_minor == curr_minor and last_patch > curr_patch:
+            self.logs.info(f'New version available: {current_version} >>> {latest_version}')
+            isNewVersion = True
+        else:
+            isNewVersion = False
+
+        return isNewVersion
 
     def get_unixtime(self) -> int:
         """
@@ -299,8 +346,8 @@ class Base:
 
     def db_init(self) -> tuple[Engine, Connection]:
 
-        db_directory = self.SysConfig.DEFENDER_DB_PATH
-        full_path_db = self.SysConfig.DEFENDER_DB_PATH + self.SysConfig.DEFENDER_DB_NAME
+        db_directory = self.DEFENDER_DB_PATH
+        full_path_db = self.DEFENDER_DB_PATH + self.DEFENDER_DB_NAME
 
         if not os.path.exists(db_directory):
             os.makedirs(db_directory)
