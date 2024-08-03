@@ -2,7 +2,7 @@ import time, threading, os, random, socket, hashlib, ipaddress, logging, request
 from datetime import datetime
 from sqlalchemy import create_engine, Engine, Connection, CursorResult
 from sqlalchemy.sql import text
-from core.configuration import Config
+from core.loadConf import Config
 
 class Base:
 

@@ -1,0 +1,48 @@
+{
+    "SERVEUR_IP": "0.0.0.0",
+    "SERVEUR_HOSTNAME": "your.host.name",
+    "SERVEUR_LINK": "your.link.to.server",
+    "SERVEUR_PORT": 7002,
+    "SERVEUR_PASSWORD": "link_password",
+    "SERVEUR_ID": "006",
+    "SERVEUR_SSL": true,
+
+    "SERVICE_NAME": "defender",
+    "SERVICE_NICKNAME": "BotNickname",
+    "SERVICE_REALNAME": "BotRealname",
+    "SERVICE_USERNAME": "BotUsername",
+    "SERVICE_HOST": "your.service.hostname",
+    "SERVICE_INFO": "Network IRC Service",
+    "SERVICE_CHANLOG": "#services",
+    "SERVICE_SMODES": "+ioqBS",
+    "SERVICE_CMODES": "ntsO",
+    "SERVICE_UMODES": "o",
+    "SERVICE_PREFIX": "!",
+
+    "OWNER": "admin",
+    "PASSWORD": "password",
+
+    "SALON_JAIL": "#jail",
+    "SALON_JAIL_MODES": "sS",
+    "SALON_LIBERER": "#welcome",
+
+    "API_TIMEOUT": 2,
+
+    "PORTS_TO_SCAN": [3028, 8080, 1080, 1085, 4145, 9050],
+    "WHITELISTED_IP": ["127.0.0.1"],
+    "GLINE_DURATION": "30",
+
+    "DEBUG_LEVEL": 20,
+
+    "CONFIG_COLOR": {
+                        "blanche": "\\u0003\\u0030",
+                        "noire": "\\u0003\\u0031",
+                        "bleue": "\\u0003\\u0020",
+                        "verte": "\\u0003\\u0033",
+                        "rouge": "\\u0003\\u0034",
+                        "jaune": "\\u0003\\u0036",
+                        "gras": "\\u0002",
+                        "nogc": "\\u0002\\u0003"
+                    }
+
+}
