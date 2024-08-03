@@ -37,7 +37,7 @@ class Install:
         print(f"===> Version of python : {python_version()} ==> OK")
 
         return True
-    
+
     def checkDependencies(self) -> None:
         """### Verifie les dépendances si elles sont installées
         - Test si les modules sont installés

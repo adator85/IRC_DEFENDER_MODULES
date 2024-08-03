@@ -1,7 +1,9 @@
 import ssl, re, importlib, sys, time, threading, socket
+from ssl import SSLSocket
 from datetime import datetime, timedelta
-
+from typing import Union
 from core.configuration import Config
+from core.sys_configuration import SysConfig
 from core.base import Base
 
 class Irc:
@@ -16,12 +18,15 @@ class Irc:
         self.beat = 30                                      # Lancer toutes les 30 secondes des actions de nettoyages
         self.hb_active = True                               # Heartbeat active
         self.HSID = ''                                      # ID du serveur qui accueil le service ( Host Serveur Id )
+        self.IrcSocket:Union[socket.socket, SSLSocket] = None
 
         self.INIT = 1                                       # Variable d'intialisation | 1 -> indique si le programme est en cours d'initialisation
         self.RESTART = 0                                    # Variable pour le redemarrage du bot | 0 -> indique que le programme n'es pas en cours de redemarrage
-        self.CHARSET = ['utf-8', 'iso-8859-1']              # Charset utiliser pour décoder/encoder les messages 
+        self.CHARSET = ['utf-8', 'iso-8859-1']              # Charset utiliser pour décoder/encoder les messages
+        self.SSL_VERSION = None                             # Version SSL
 
         self.Config = Config()
+        self.SysConfig = SysConfig()
 
         # Liste des commandes internes du bot
         self.commands_level = {
@@ -38,7 +43,7 @@ class Irc:
                 self.commands.append(command)
 
         self.Base = Base(self.Config)
-        self.Base.create_thread(self.heartbeat, (self.beat, ))
+        self.Base.create_thread(func=self.heartbeat, func_args=(self.beat, ))
 
     ##############################################
     #               CONNEXION IRC                #
@@ -48,25 +53,45 @@ class Irc:
             self.__create_socket()
             self.__connect_to_irc(ircInstance)
         except AssertionError as ae:
-            self.debug(f'Assertion error : {ae}')
+            self.Base.logs.critical(f'Assertion error: {ae}')
 
     def __create_socket(self) -> None:
 
-        self.IrcSocket: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connexion_information = (self.Config.SERVEUR_IP, self.Config.SERVEUR_PORT)
-        self.IrcSocket.connect(connexion_information)
+        try:
+            soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM or socket.SOCK_NONBLOCK)
+            connexion_information = (self.Config.SERVEUR_IP, self.Config.SERVEUR_PORT)
 
-        # Créer un object ssl
-        ssl_context = self.__ssl_context()
-        ssl_connexion = ssl_context.wrap_socket(self.IrcSocket, server_hostname=self.Config.SERVEUR_HOSTNAME)
-        self.IrcSocket = ssl_connexion
+            if self.Config.SERVEUR_SSL:
+                # Créer un object ssl
+                ssl_context = self.__ssl_context()
+                ssl_connexion = ssl_context.wrap_socket(soc, server_hostname=self.Config.SERVEUR_HOSTNAME)
+                ssl_connexion.connect(connexion_information)
+                self.IrcSocket:SSLSocket = ssl_connexion
 
-        return None
+                self.Base.logs.info(f"Connexion en mode SSL : Version = {self.IrcSocket.version()}")
+                self.SSL_VERSION = self.IrcSocket.version()
+            else:
+                soc.connect(connexion_information)
+                self.IrcSocket:socket.socket = soc
+                self.Base.logs.info("Connexion en mode normal")
+
+            return None
+
+        except ssl.SSLEOFError as soe:
+            self.Base.logs.critical(f"SSLEOFError __create_socket: {soe} - {soc.fileno()}")
+        except ssl.SSLError as se:
+            self.Base.logs.critical(f"SSLError __create_socket: {se} - {soc.fileno()}")
+        except OSError as oe:
+            self.Base.logs.critical(f"OSError __create_socket: {oe} - {soc.fileno()}")
+        except AttributeError as ae:
+            self.Base.logs.critical(f"OSError __create_socket: {oe} - {soc.fileno()}")
 
     def __ssl_context(self) -> ssl.SSLContext:
-        ctx = ssl.create_default_context()
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
+
+        self.Base.logs.debug(f'SSLContext initiated with verified mode {ctx.verify_mode}')
 
         return ctx
 
@@ -78,50 +103,61 @@ class Irc:
             self.load_existing_modules()                        # Charger les modules existant dans la base de données
 
             while self.signal:
-                if self.RESTART == 1:
-                    self.IrcSocket.shutdown(socket.SHUT_RDWR)
-                    self.IrcSocket.close()
+                try:
+                    if self.RESTART == 1:
+                        self.Base.logs.debug('Restarting Defender ...')
+                        self.IrcSocket.shutdown(socket.SHUT_RDWR)
+                        self.IrcSocket.close()
 
-                    while self.IrcSocket.fileno() != -1:
-                        time.sleep(0.5)
-                        self.debug("--> En attente de la fermeture du socket ...")
+                        while self.IrcSocket.fileno() != -1:
+                            time.sleep(0.5)
+                            self.Base.logs.warning('--> Waiting for socket to close ...')
 
-                    self.__create_socket()
-                    self.__link(self.IrcSocket)
-                    self.load_existing_modules()
-                    self.RESTART = 0
-                # 4072 max what the socket can grab
-                buffer_size = self.IrcSocket.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
-                # data = self.IrcSocket.recv(buffer_size).splitlines(True)
+                        self.__create_socket()
+                        self.__link(self.IrcSocket)
+                        self.load_existing_modules()
+                        self.RESTART = 0
 
-                data_in_bytes = self.IrcSocket.recv(buffer_size)
-                count_bytes = len(data_in_bytes)
+                    # 4072 max what the socket can grab
+                    buffer_size = self.IrcSocket.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+                    data_in_bytes = self.IrcSocket.recv(buffer_size)
+                    data = data_in_bytes.splitlines(True)
+                    count_bytes = len(data_in_bytes)
 
-                while count_bytes > 4070:
-                    # If the received message is > 4070 then loop and add the value to the variable
-                    new_data = self.IrcSocket.recv(buffer_size)
-                    data_in_bytes += new_data
-                    count_bytes = len(new_data)
-                    # print("========================================================")
+                    while count_bytes > 4070:
+                        # If the received message is > 4070 then loop and add the value to the variable
+                        new_data = self.IrcSocket.recv(buffer_size)
+                        data_in_bytes += new_data
+                        count_bytes = len(new_data)
 
-                data = data_in_bytes.splitlines()
+                    data = data_in_bytes.splitlines(True)
 
-                # print(f"{str(buffer_size)} - {str(len(data_in_bytes))}")
+                    if not data:
+                        break
 
-                if not data:
-                    break
+                    self.send_response(data)
 
-                self.send_response(data)
+                except ssl.SSLEOFError as soe:
+                    self.Base.logs.error(f"SSLEOFError __connect_to_irc: {soe} - {data}")
+                except ssl.SSLError as se:
+                    self.Base.logs.error(f"SSLError __connect_to_irc: {se} - {data}")
+                except OSError as oe:
+                    self.Base.logs.error(f"SSLError __connect_to_irc: {oe} - {data}")
 
             self.IrcSocket.shutdown(socket.SHUT_RDWR)
             self.IrcSocket.close()
+            self.Base.logs.info("--> Fermeture de Defender ...")
 
         except AssertionError as ae:
-            self.debug(f'Assertion error : {ae}')
+            self.Base.logs.error(f'Assertion error : {ae}')
         except ValueError as ve:
-            self.debug(f'Value Error : {ve}')
-        except OSError as oe:
-            self.debug(f"OS Error : {oe}")
+            self.Base.logs.error(f'Value Error : {ve}')
+        except ssl.SSLEOFError as soe:
+            self.Base.logs.error(f"OS Error __connect_to_irc: {soe}")
+        except AttributeError as atte:
+            self.Base.logs.critical(f"{atte}")
+        # except Exception as e:
+        #     self.debug(f"Exception: {e}")
 
     def __link(self, writer:socket.socket) -> None:
         """Créer le link et envoyer les informations nécessaires pour la 
@@ -130,63 +166,70 @@ class Irc:
         Args:
             writer (StreamWriter): permet l'envoi des informations au serveur.
         """
+        try:
+            nickname = self.Config.SERVICE_NICKNAME
+            username = self.Config.SERVICE_USERNAME
+            realname = self.Config.SERVICE_REALNAME
+            chan = self.Config.SERVICE_CHANLOG
+            info = self.Config.SERVICE_INFO
+            smodes = self.Config.SERVICE_SMODES
+            cmodes = self.Config.SERVICE_CMODES
+            umodes = self.Config.SERVICE_UMODES
+            host = self.Config.SERVICE_HOST
+            service_name = self.Config.SERVICE_NAME
 
-        nickname = self.Config.SERVICE_NICKNAME
-        username = self.Config.SERVICE_USERNAME
-        realname = self.Config.SERVICE_REALNAME
-        chan = self.Config.SERVICE_CHANLOG
-        info = self.Config.SERVICE_INFO
-        smodes = self.Config.SERVICE_SMODES
-        cmodes = self.Config.SERVICE_CMODES
-        umodes = self.Config.SERVICE_UMODES
-        host = self.Config.SERVICE_HOST
-        service_name = self.Config.SERVICE_NAME
+            password = self.Config.SERVEUR_PASSWORD
+            link = self.Config.SERVEUR_LINK
+            sid = self.Config.SERVEUR_ID
+            service_id = self.Config.SERVICE_ID
 
-        password = self.Config.SERVEUR_PASSWORD
-        link = self.Config.SERVEUR_LINK
-        sid = self.Config.SERVEUR_ID
-        service_id = self.Config.SERVICE_ID
+            version = self.SysConfig.DEFENDER_VERSION
+            unixtime = self.Base.get_unixtime()
 
-        version = self.Config.DEFENDER_VERSION
-        unixtime = self.Base.get_unixtime()
+            # Envoyer un message d'identification
+            writer.send(f":{sid} PASS :{password}\r\n".encode('utf-8'))
+            writer.send(f":{sid} PROTOCTL NICKv2 VHP UMODE2 NICKIP SJOIN SJOIN2 SJ3 NOQUIT TKLEXT MLOCK SID MTAGS\r\n".encode('utf-8'))
+            writer.send(f":{sid} PROTOCTL EAUTH={link},,,{service_name}-v{version}\r\n".encode('utf-8'))
+            writer.send(f":{sid} PROTOCTL SID={sid}\r\n".encode('utf-8'))
+            writer.send(f":{sid} SERVER {link} 1 :{info}\r\n".encode('utf-8'))
+            writer.send(f":{sid} {nickname} :Reserved for services\r\n".encode('utf-8'))
+            writer.send(f":{sid} UID {nickname} 1 {unixtime} {username} {host} {service_id} * {smodes} * * * :{realname}\r\n".encode('utf-8'))
+            writer.send(f":{sid} SJOIN {unixtime} {chan} + :{service_id}\r\n".encode('utf-8'))
+            writer.send(f":{sid} MODE {chan} +{cmodes}\r\n".encode('utf-8'))
+            writer.send(f":{service_id} SAMODE {chan} +{umodes} {nickname}\r\n".encode('utf-8'))
 
-        # Envoyer un message d'identification
-        # strtobytes = bytes(":" + sid + " PASS :" + password + "\r\n", 'utf-8')
-        # self.IrcSocket.send(strtobytes)
-        writer.send(f":{sid} PASS :{password}\r\n".encode('utf-8'))
-        writer.send(f":{sid} PROTOCTL NICKv2 VHP UMODE2 NICKIP SJOIN SJOIN2 SJ3 NOQUIT TKLEXT MLOCK SID MTAGS\r\n".encode('utf-8'))
-        writer.send(f":{sid} PROTOCTL EAUTH={link},,,{service_name}-v{version}\r\n".encode('utf-8'))
-        writer.send(f":{sid} PROTOCTL SID={sid}\r\n".encode('utf-8'))
-        writer.send(f":{sid} SERVER {link} 1 :{info}\r\n".encode('utf-8'))
-        writer.send(f":{sid} {nickname} :Reserved for services\r\n".encode('utf-8'))
-        writer.send(f":{sid} UID {nickname} 1 {unixtime} {username} {host} {service_id} * {smodes} * * * :{realname}\r\n".encode('utf-8'))
-        writer.send(f":{sid} SJOIN {unixtime} {chan} + :{service_id}\r\n".encode('utf-8'))
-        writer.send(f":{sid} MODE {chan} +{cmodes}\r\n".encode('utf-8'))
-        writer.send(f":{service_id} SAMODE {chan} +{umodes} {nickname}\r\n".encode('utf-8'))
-        
-        # writer.write(f"USER {nickname} {username} {username} {nickname} {username} :{username}\r\n".encode('utf-8'))
-        # writer.write(f"USER {username} {username} {username} :{username}\r\n".encode('utf-8'))
-        # writer.write(f"NICK {nickname}\r\n".encode('utf-8'))
+            self.Base.logs.debug('Link information sent to the server')
 
-    def send2socket(self, send_message:str)->None:
+            return None
+        except AttributeError as ae:
+            self.Base.logs.critical(f'{ae}')
+
+    def send2socket(self, send_message:str) -> None:
         """Envoit les commandes à envoyer au serveur.
 
         Args:
             string (Str): contient la commande à envoyer au serveur.
         """
         try:
-            self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0]))
+            with self.Base.lock:
+                # print(f">{str(send_message)}")
+                self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0]))
+                self.Base.logs.debug(f'{send_message}')
 
         except UnicodeDecodeError:
-            self.debug('Write Decode impossible try iso-8859-1')
+            self.Base.logs.error(f'Decode Error try iso-8859-1 - message: {send_message}')
             self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0],'replace'))
         except UnicodeEncodeError:
-            self.debug('Write Encode impossible ... try iso-8859-1')
+            self.Base.logs.error(f'Encode Error try iso-8859-1 - message: {send_message}')
             self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0],'replace'))
         except AssertionError as ae:
-            self.debug(f"Assertion error : {ae}")
+            self.Base.logs.warning(f'Assertion Error {ae} - message: {send_message}')
+        except ssl.SSLEOFError as soe:
+            self.Base.logs.error(f"SSLEOFError: {soe} - {send_message}")
+        except ssl.SSLError as se:
+            self.Base.logs.error(f"SSLError: {se} - {send_message}")
         except OSError as oe:
-            self.debug(f"OS Error : {oe}")
+            self.Base.logs.error(f"OSError: {oe} - {send_message}")
 
     def send_response(self, responses:list[bytes]) -> None:
         try:
@@ -194,6 +237,7 @@ class Irc:
             for data in responses:
                 response = data.decode(self.CHARSET[0]).split()
                 self.cmd(response)
+
         except UnicodeEncodeError:
             for data in responses:
                 response = data.decode(self.CHARSET[1],'replace').split()
@@ -203,10 +247,12 @@ class Irc:
                 response = data.decode(self.CHARSET[1],'replace').split()
                 self.cmd(response)
         except AssertionError as ae:
-            self.debug(f"Assertion error : {ae}")
+            self.Base.logs.error(f"Assertion error : {ae}")
+
     ##############################################
     #             FIN CONNEXION IRC              #
     ##############################################
+
     def load_existing_modules(self) -> None:
         """Charge les modules qui existe déja dans la base de données
 
@@ -219,7 +265,7 @@ class Irc:
 
         return None
 
-    def get_defender_uptime(self)->str:
+    def get_defender_uptime(self) -> str:
         """Savoir depuis quand Defender est connecté
 
         Returns:
@@ -228,7 +274,7 @@ class Irc:
         current_datetime = datetime.now()
         diff_date = current_datetime - self.defender_connexion_datetime
         uptime = timedelta(days=diff_date.days, seconds=diff_date.seconds)
-        
+
         return uptime
 
     def heartbeat(self, beat:float) -> None:
@@ -252,7 +298,7 @@ class Irc:
         # 2. Executer la fonction
         try:
             if not class_name in self.loaded_classes:
-                self.debug(f"La class [{class_name} n'existe pas !!]")
+                self.Base.logs.error(f"La class [{class_name} n'existe pas !!]")
                 return False
 
             class_instance = self.loaded_classes[class_name]
@@ -262,12 +308,12 @@ class Irc:
 
             self.Base.running_timers.append(t)
 
-            self.debug(f"Timer ID : {str(t.ident)} | Running Threads : {len(threading.enumerate())}")
+            self.Base.logs.debug(f"Timer ID : {str(t.ident)} | Running Threads : {len(threading.enumerate())}")
 
         except AssertionError as ae:
-            self.debug(f'Assertion Error -> {ae}')
+            self.Base.logs.error(f'Assertion Error -> {ae}')
         except TypeError as te:
-            self.debug(f"Type error -> {te}")
+            self.Base.logs.error(f"Type error -> {te}")
 
     def __create_tasks(self, obj: object, method_name: str, param:list) -> None:
         """#### Ajouter les méthodes a éxecuter dans un dictionnaire
@@ -286,7 +332,7 @@ class Irc:
             'param': param
             }
 
-        self.debug(f'Function to execute : {str(self.Base.periodic_func)}')
+        self.Base.logs.debug(f'Function to execute : {str(self.Base.periodic_func)}')
         self.send_ping_to_sereur()
         return None
 
@@ -300,7 +346,6 @@ class Irc:
         return None
 
     def load_module(self, fromuser:str, module_name:str, init:bool = False) -> bool:
-
         try:
             # module_name : mod_voice
             module_name = module_name.lower()
@@ -310,8 +355,8 @@ class Irc:
 
             # Si le module est déja chargé
             if 'mods.' + module_name in sys.modules:
-                self.debug("Module déja chargé ...")
-                self.debug('module name = ' + module_name)
+                self.Base.logs.info("Module déja chargé ...")
+                self.Base.logs.info('module name = ' + module_name)
                 if class_name in self.loaded_classes:
                     # Si le module existe dans la variable globale retourne False
                     self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Le module {module_name} est déja chargé ! si vous souhaiter le recharge tapez {self.Config.SERVICE_PREFIX}reload {module_name}")
@@ -342,14 +387,14 @@ class Irc:
                 self.Base.db_record_module(fromuser, module_name)
             self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} chargé")
 
-            self.debug(self.loaded_classes)
+            self.Base.logs.info(self.loaded_classes)
             return True
 
         except ModuleNotFoundError as moduleNotFound:
-            self.debug(f"MODULE_NOT_FOUND: {moduleNotFound}")
+            self.Base.logs.error(f"MODULE_NOT_FOUND: {moduleNotFound}")
             self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}MODULE_NOT_FOUND{self.Config.CONFIG_COLOR['noire']} ]: {moduleNotFound}")
-        except:
-            self.debug(f"Something went wrong with a module you want to load")
+        except Exception as e:
+            self.Base.logs.error(f"Something went wrong with a module you want to load : {e}")
 
     def insert_db_uid(self, uid:str, nickname:str, username:str, hostname:str, umodes:str, vhost:str, isWebirc: bool) -> None:
 
@@ -379,7 +424,7 @@ class Irc:
         return None
 
     def update_db_uid(self, uid:str, newnickname:str) -> None:
-        
+
         # Récupérer l'ancien nickname
         oldnickname = self.db_uid[uid]['nickname']
 
@@ -391,7 +436,7 @@ class Irc:
             'umodes': self.db_uid[uid]['umodes'],
             'vhost': self.db_uid[uid]['vhost']
         }
-        
+
         # Modification du nickname dans la ligne UID 
         self.db_uid[uid]['nickname'] = newnickname
 
@@ -399,11 +444,11 @@ class Irc:
         if oldnickname in self.db_uid:
             del self.db_uid[oldnickname]
         else:
-            self.debug(f"L'ancien nickname {oldnickname} n'existe pas dans UID_DB")
+            self.Base.logs.debug(f"L'ancien nickname {oldnickname} n'existe pas dans UID_DB")
             response = False
 
-        self.debug(f"{oldnickname} changed to {newnickname}")
-        
+        self.Base.logs.debug(f"{oldnickname} changed to {newnickname}")
+
         return None
 
     def delete_db_uid(self, uid:str) -> None:
@@ -430,8 +475,6 @@ class Irc:
         umodes = self.db_uid[uid]['umodes']
         vhost = self.db_uid[uid]['vhost']
         level = int(level)
-        
-        
 
         self.db_admin[uid] = {
             'nickname': nickname,
@@ -481,7 +524,7 @@ class Irc:
         """
         if channel in self.db_chan:
             return False
-        
+
         response = True
         # Ajouter un nouveau salon
         self.db_chan.append(channel)
@@ -489,7 +532,7 @@ class Irc:
         # Supprimer les doublons de la liste
         self.db_chan = list(set(self.db_chan))
 
-        self.debug(f"Le salon {channel} a été ajouté à la liste CHAN_DB")
+        self.Base.logs.debug(f"Le salon {channel} a été ajouté à la liste CHAN_DB")
 
         return response
 
@@ -500,13 +543,13 @@ class Irc:
 
         if level > 4:
             response = "Impossible d'ajouter un niveau > 4"
-            self.debug(response)
+            self.Base.logs.warning(response)
             return response
 
         # Verification si le user existe dans notre UID_DB
         if not nickname in self.db_uid:
             response = f"{nickname} n'est pas connecté, impossible de l'enregistrer pour le moment"
-            self.debug(response)
+            self.Base.logs.warning(response)
             return response
 
         hostname = self.db_uid[nickname]['hostname']
@@ -527,15 +570,15 @@ class Irc:
                     ''', mes_donnees)
             response = f"{nickname} ajouté en tant qu'administrateur de niveau {level}"
             self.send2socket(f':{self.Config.SERVICE_NICKNAME} NOTICE {nickname} : {response}')
-            self.debug(response)
+            self.Base.logs.info(response)
             return response
         else:
             response = f'{nickname} Existe déjà dans les users enregistrés'
             self.send2socket(f':{self.Config.SERVICE_NICKNAME} NOTICE {nickname} : {response}')
-            self.debug(response)
+            self.Base.logs.info(response)
             return response
 
-    def get_uid(self, uidornickname:str) -> str | None:
+    def get_uid(self, uidornickname:str) -> Union[str, None]:
 
         uid_recherche = uidornickname
         response = None
@@ -548,8 +591,8 @@ class Irc:
 
         return response
 
-    def get_nickname(self, uidornickname:str) -> str | None:
-        
+    def get_nickname(self, uidornickname:str) -> Union[str, None]:
+
         nickname_recherche = uidornickname
 
         response = None
@@ -563,11 +606,11 @@ class Irc:
         return response
 
     def is_cmd_allowed(self,nickname:str, cmd:str) -> bool:
-        
+
         # Vérifier si le user est identifié et si il a les droits
         is_command_allowed = False
         uid = self.get_uid(nickname)
-        
+
         if uid in self.db_admin:
             admin_level = self.db_admin[uid]['level']
 
@@ -606,13 +649,27 @@ class Irc:
 
     def cmd(self, data:list) -> None:
         try:
+
             cmd_to_send:list[str] = data.copy()
             cmd = data.copy()
 
+            cmd_to_debug = data.copy()
+            cmd_to_debug.pop(0)
+
             if len(cmd) == 0 or len(cmd) == 1:
+                self.Base.logs.warning(f'Size ({str(len(cmd))}) - {cmd}')
                 return False
 
-            self.debug(cmd)
+            # self.debug(cmd_to_debug)
+            if len(data) == 7:
+                if data[2] == 'PRIVMSG' and data[4] == ':auth':
+                    data_copy = data.copy()
+                    data_copy[6] = '**********'
+                    self.Base.logs.debug(data_copy)
+                else:
+                    self.Base.logs.debug(data)
+            else:
+                self.Base.logs.debug(data)
 
             match cmd[0]:
 
@@ -654,8 +711,8 @@ class Irc:
                         #     self.Base.create_thread(self.abuseipdb_scan, (cmd[2], ))
                         pass
                         # Possibilité de déclancher les bans a ce niveau.
-                    except IndexError:
-                        self.debug(f'cmd reputation: index error')
+                    except IndexError as ie:
+                        self.Base.logs.error(f'{ie}')
 
                 case '320':
                     #:irc.deb.biz.st 320 PyDefender IRCParis07 :is in security-groups: known-users,webirc-users,tls-and-known-users,tls-users
@@ -680,10 +737,23 @@ class Irc:
                             print(f"#               SERVICE CONNECTE                ")
                             print(f"# SERVEUR  :    {self.Config.SERVEUR_IP}        ")
                             print(f"# PORT     :    {self.Config.SERVEUR_PORT}      ")
+                            print(f"# SSL      :    {self.Config.SERVEUR_SSL}       ")
+                            print(f"# SSL VER  :    {self.SSL_VERSION}              ")
                             print(f"# NICKNAME :    {self.Config.SERVICE_NICKNAME}  ")
                             print(f"# CHANNEL  :    {self.Config.SERVICE_CHANLOG}   ")
-                            print(f"# VERSION  :    {self.Config.DEFENDER_VERSION}  ")
+                            print(f"# VERSION  :    {self.SysConfig.DEFENDER_VERSION}  ")
                             print(f"################################################")
+
+                            self.Base.logs.info(f"################### DEFENDER ###################")
+                            self.Base.logs.info(f"#               SERVICE CONNECTE                ")
+                            self.Base.logs.info(f"# SERVEUR  :    {self.Config.SERVEUR_IP}        ")
+                            self.Base.logs.info(f"# PORT     :    {self.Config.SERVEUR_PORT}      ")
+                            self.Base.logs.info(f"# SSL      :    {self.Config.SERVEUR_SSL}       ")
+                            self.Base.logs.info(f"# SSL VER  :    {self.SSL_VERSION}              ")
+                            self.Base.logs.info(f"# NICKNAME :    {self.Config.SERVICE_NICKNAME}  ")
+                            self.Base.logs.info(f"# CHANNEL  :    {self.Config.SERVICE_CHANLOG}   ")
+                            self.Base.logs.info(f"# VERSION  :    {self.SysConfig.DEFENDER_VERSION}  ")
+                            self.Base.logs.info(f"################################################")
 
                         # Initialisation terminé aprés le premier PING
                         self.INIT = 0
@@ -703,7 +773,7 @@ class Irc:
                     cmd.pop(0)
                     uid_who_quit = str(cmd[0]).replace(':', '')
                     self.delete_db_uid(uid_who_quit)
-                
+
                 case 'PONG':
                     # ['@msgid=aTNJhp17kcPboF5diQqkUL;time=2023-12-28T20:35:58.411Z', ':irc.deb.biz.st', 'PONG', 'irc.deb.biz.st', ':Dev-PyDefender']
                     self.Base.execute_periodic_action()
@@ -750,6 +820,15 @@ class Irc:
                         cmd.pop(0)
 
                         get_uid_or_nickname = str(cmd[0].replace(':',''))
+                        if len(cmd) == 6:
+                            if cmd[1] == 'PRIVMSG' and cmd[3] == ':auth':
+                                cmd_copy = cmd.copy()
+                                cmd_copy[5] = '**********'
+                                self.Base.logs.debug(cmd_copy)
+                            else:
+                                self.Base.logs.info(cmd)
+                        else:
+                            self.Base.logs.info(f'{cmd}')
                         # user_trigger = get_user.split('!')[0]
                         user_trigger = self.get_nickname(get_uid_or_nickname)
                         dnickname = self.Config.SERVICE_NICKNAME
@@ -783,15 +862,15 @@ class Irc:
 
                                 # Réponse a un CTCP VERSION
                                 if arg[0] == '\x01VERSION\x01':
-                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01VERSION Service {self.Config.SERVICE_NICKNAME} V{self.Config.DEFENDER_VERSION}\x01')
+                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01VERSION Service {self.Config.SERVICE_NICKNAME} V{self.SysConfig.DEFENDER_VERSION}\x01')
                                     return False
-                                
+
                                 # Réponse a un TIME
                                 if arg[0] == '\x01TIME\x01':
                                     current_datetime = self.Base.get_datetime()
                                     self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01TIME {current_datetime}\x01')
                                     return False
-                                
+
                                 # Réponse a un PING
                                 if arg[0] == '\x01PING':
                                     recieved_unixtime = int(arg[1].replace('\x01',''))
@@ -809,8 +888,8 @@ class Irc:
 
                                 self._hcmds(user_trigger, arg)
 
-                    except IndexError:
-                        self.debug(f'cmd --> PRIVMSG --> List index out of range')
+                    except IndexError as io:
+                        self.Base.logs.error(f'{io}')
 
                 case _:
                     pass
@@ -821,7 +900,7 @@ class Irc:
                     classe_object.cmd(cmd_to_send)
 
         except IndexError as ie:
-            self.debug(f"IRC CMD -> IndexError : {ie} - {cmd} - length {str(len(cmd))}")
+            self.Base.logs.error(f"{ie} / {cmd} / length {str(len(cmd))}")
 
     def _hcmds(self, user: str, cmd:list) -> None:
 
@@ -853,8 +932,8 @@ class Irc:
                     current_command = cmd[0]
                     self.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["rouge"]}{current_command}{self.Config.CONFIG_COLOR["noire"]} ] - Accès Refusé à {self.get_nickname(fromuser)}')
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : Accès Refusé')
-                except IndexError:
-                    self.debug(f'_hcmd notallowed : Index Error')
+                except IndexError as ie:
+                    self.Base.logs.error(f'{ie}')
 
             case 'deauth':
 
@@ -874,11 +953,12 @@ class Irc:
                     query = f"SELECT id, level FROM {self.Base.DB_SCHEMA['admins']} WHERE user = :user AND password = :password"
                     result = self.Base.db_execute_query(query, mes_donnees)
                     user_from_db = result.fetchone()
-                    
+
                     if not user_from_db is None:
                         uid_user = self.get_uid(user_to_log)
                         self.insert_db_admin(uid_user, user_from_db[1])
                         self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.get_nickname(fromuser)} est désormais connecté a {dnickname}")
+                        self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Connexion a {dnickname} réussie!")
                     else:
                         self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.get_nickname(fromuser)} a tapé un mauvais mot de pass")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Mot de passe incorrecte")
@@ -895,13 +975,13 @@ class Irc:
 
                     response = self.create_defender_user(newnickname, newlevel, password)
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : {response}')
-                    self.debug(response)
+                    self.Base.logs.info(response)
 
                 except IndexError as ie:
-                    self.debug(f'_hcmd addaccess: {ie}')
+                    self.Base.logs.error(f'_hcmd addaccess: {ie}')
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} addaccess [nickname] [level] [password]')
                 except TypeError as te:
-                    self.debug(f'_hcmd addaccess: out of index : {te}')
+                    self.Base.logs.error(f'_hcmd addaccess: out of index : {te}')
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} addaccess [nickname] [level] [password]')
 
             case 'editaccess':
@@ -949,9 +1029,9 @@ class Irc:
                             self.send2socket(f":{dnickname} NOTICE {fromuser} : Impossible de modifier l'utilisateur {str(user_new_level)}")
 
                 except TypeError as te:
-                    self.debug(f"Type error : {te}")
+                    self.Base.logs.error(f"Type error : {te}")
                 except ValueError as ve:
-                    self.debug(f"Value Error : {ve}")
+                    self.Base.logs.error(f"Value Error : {ve}")
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : .editaccess [USER] [NEWPASSWORD] [NEWLEVEL]')
 
             case 'delaccess':
@@ -961,9 +1041,9 @@ class Irc:
 
                 if user_to_del != user_confirmation:
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : Les user ne sont pas les mêmes, tu dois confirmer le user que tu veux supprimer')
+                    self.Base.logs.warning(f':{dnickname} NOTICE {fromuser} : Les user ne sont pas les mêmes, tu dois confirmer le user que tu veux supprimer')
                     return None
 
-                print(len(cmd))
                 if len(cmd) < 3:
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : .delaccess [USER] [CONFIRMUSER]')
                     return None
@@ -982,6 +1062,7 @@ class Irc:
                     level_user_to_del = info_user[1]
                     if current_user_level <= level_user_to_del:
                         self.send2socket(f':{dnickname} NOTICE {fromuser} : You are not allowed to delete this access')
+                        self.Base.logs.warning(f':{dnickname} NOTICE {fromuser} : You are not allowed to delete this access')
                         return None
 
                     data_to_delete = {'user': user_to_del}
@@ -991,6 +1072,7 @@ class Irc:
                         self.send2socket(f':{dnickname} NOTICE {fromuser} : User {user_to_del} has been deleted !')
                     else:
                         self.send2socket(f":{dnickname} NOTICE {fromuser} : Impossible de supprimer l'utilisateur.")
+                        self.Base.logs.warning(f":{dnickname} NOTICE {fromuser} : Impossible de supprimer l'utilisateur.")
 
             case 'help':
 
@@ -1034,7 +1116,7 @@ class Irc:
                     class_name = module_name.split('_')[1].capitalize()            # Nom de la class. exemple: Defender
 
                     if class_name in self.loaded_classes:
-
+                        self.loaded_classes[class_name].unload()
                         for level, command in self.loaded_classes[class_name].commands_level.items():
                             # Supprimer la commande de la variable commands
                             for c in self.loaded_classes[class_name].commands_level[level]:
@@ -1048,7 +1130,7 @@ class Irc:
 
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} supprimé")
                 except:
-                    self.debug(f"Something went wrong with a module you want to load")
+                    self.Base.logs.error(f"Something went wrong with a module you want to load")
 
             case 'reload':
                 # reload mod_dktmb
@@ -1057,7 +1139,8 @@ class Irc:
                     class_name = module_name.split('_')[1].capitalize()                        # ==> Defender
 
                     if 'mods.' + module_name in sys.modules:
-                        self.debug('Module Already Loaded ... reload the module ...')
+                        self.loaded_classes[class_name].unload()
+                        self.Base.logs.info('Module Already Loaded ... reload the module ...')
                         the_module = sys.modules['mods.' + module_name]
                         importlib.reload(the_module)
                         
@@ -1081,7 +1164,7 @@ class Irc:
                     else:
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} n'est pas chargé !")
                 except:
-                    self.debug(f"Something went wrong with a module you want to reload")
+                    self.Base.logs.error(f"Something went wrong with a module you want to reload")
 
             case 'quit':
                 try:
@@ -1096,13 +1179,13 @@ class Irc:
 
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : Arrêt du service {dnickname}')
                     self.send2socket(f':{self.Config.SERVEUR_LINK} SQUIT {self.Config.SERVEUR_LINK} :{final_reason}')
-                    self.debug(f'Arrêt du server {dnickname}')
+                    self.Base.logs.info(f'Arrêt du server {dnickname}')
                     self.RESTART = 0
                     self.signal = False
 
-                except IndexError:
-                    self.debug('_hcmd die: out of index')
-                
+                except IndexError as ie:
+                    self.Base.logs.error(f'{ie}')
+
                 self.send2socket(f"QUIT Good bye")
 
             case 'restart':
@@ -1114,16 +1197,19 @@ class Irc:
                 self.db_uid.clear()                     #Vider UID_DB
                 self.db_chan = []                       #Vider les salons
 
+                for class_name in self.loaded_classes:
+                    self.loaded_classes[class_name].unload()
+
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : Redémarrage du service {dnickname}')
                 self.send2socket(f':{self.Config.SERVEUR_LINK} SQUIT {self.Config.SERVEUR_LINK} :{final_reason}')
-                self.debug(f'Redémarrage du server {dnickname}')
+                self.Base.logs.info(f'Redémarrage du server {dnickname}')
                 self.loaded_classes.clear()
                 self.RESTART = 1                 # Set restart status to 1 saying that the service will restart
                 self.INIT = 1                    # set init to 1 saying that the service will be re initiated
 
             case 'show_modules':
 
-                self.debug(self.loaded_classes)
+                self.Base.logs.debug(self.loaded_classes)
 
                 results = self.Base.db_execute_query(f'SELECT module FROM {self.Base.DB_SCHEMA["modules"]}')
                 results = results.fetchall()
@@ -1134,33 +1220,36 @@ class Irc:
 
                 for r in results:
                     self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :Le module {r[0]} chargé")
-                    self.debug(r[0])
 
             case 'show_timers':
 
                 if self.Base.running_timers:
                     self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :{self.Base.running_timers}")
-                    self.debug(self.Base.running_timers)
                 else:
                     self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :Aucun timers en cours d'execution")
 
             case 'show_threads':
-                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :{self.Base.running_threads}")
+
+                running_thread_name:list = []
+                for thread in self.Base.running_threads:
+                    running_thread_name.append(f"{thread.getName()} ({thread.is_alive()})")
+
+                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :{str(running_thread_name)}")
 
             case 'uptime':
                 uptime = self.get_defender_uptime()
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : {uptime}')
 
             case 'copyright':
-                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Config.DEFENDER_VERSION} Developped by adator® and dktmb® #')
+                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.SysConfig.DEFENDER_VERSION} Developped by adator® and dktmb® #')
 
             case 'sentinel':
                 # .sentinel on
                 activation = str(cmd[1]).lower()
                 service_id = self.Config.SERVICE_ID
-                
+
                 channel_to_dont_quit = [self.Config.SALON_JAIL, dchanlog]
-                
+
                 if activation == 'on':
                     for chan in self.db_chan:
                         if not chan in channel_to_dont_quit:
