@@ -1267,6 +1267,7 @@ class Irc:
 
                 if self.Base.check_for_new_version():
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : New Version available : {self.Base.DEFENDER_VERSION} >>> {self.Base.LATEST_DEFENDER_VERSION}')
+                    self.send2socket(f':{dnickname} NOTICE {fromuser} : Please run (git pull origin main) in the current folder')
                 else:
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : You have the latest version of defender')
                 pass
