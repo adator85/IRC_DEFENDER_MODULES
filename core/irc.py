@@ -2,7 +2,7 @@ import ssl, re, importlib, sys, time, threading, socket
 from ssl import SSLSocket
 from datetime import datetime, timedelta
 from typing import Union
-from core.configuration import Config
+from core.loadConf import Config
 from core.base import Base
 
 class Irc:
@@ -24,7 +24,7 @@ class Irc:
         self.CHARSET = ['utf-8', 'iso-8859-1']              # Charset utiliser pour décoder/encoder les messages
         self.SSL_VERSION = None                             # Version SSL
 
-        self.Config = Config()
+        self.Config = Config().ConfigModel
 
         # Liste des commandes internes du bot
         self.commands_level = {
@@ -110,6 +110,11 @@ class Irc:
                         while self.IrcSocket.fileno() != -1:
                             time.sleep(0.5)
                             self.Base.logs.warning('--> Waiting for socket to close ...')
+
+                        # Reload configuration
+                        self.Base.logs.debug('Reloading configuration')
+                        self.Config = Config().ConfigModel
+                        self.Base = Base(self.Config)
 
                         self.__create_socket()
                         self.__link(self.IrcSocket)
