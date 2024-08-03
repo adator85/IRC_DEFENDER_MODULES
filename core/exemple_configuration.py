@@ -1,5 +1,3 @@
-import os
-from typing import Literal, Dict, List
 ##########################################
 #   CONFIGURATION FILE :                 #
 #   Rename file to : configuration.py    #
@@ -7,19 +5,15 @@ from typing import Literal, Dict, List
 
 class Config:
 
-    DEFENDER_VERSION = '3.3.2'                              # MAJOR.MINOR.BATCH
-    DEFENDER_DB_PATH = 'db' + os.sep                        # Séparateur en fonction de l'OS
-    DEFENDER_DB_NAME = 'defender'                           # Le nom de la base de données principale
-    SERVICE_NAME = 'defender'                               # Le nom du service
-
-    SERVEUR_IP = '8.8.8.8'                                  # IP ou host du serveur à rejoindre
+    SERVEUR_IP = '0.0.0.0'                                  # IP ou host du serveur à rejoindre
     SERVEUR_HOSTNAME = 'your hostname'                      # Le hostname du serveur IRC 
     SERVEUR_LINK = 'your link'                              # Host attendu par votre IRCd (ex. dans votre link block pour Unrealircd)
     SERVEUR_PORT = 6666                                     # Port du link
     SERVEUR_PASSWORD = 'your link password'                 # Mot de passe du link (Privilégiez argon2 sur Unrealircd)
     SERVEUR_ID = '002'                                      # SID (identification) du bot en tant que Services
-    SERVEUR_SSL = False                                      # Activer / Desactiver la connexion SSL
+    SERVEUR_SSL = True                                      # Activer / Desactiver la connexion SSL
 
+    SERVICE_NAME = 'defender'                               # Le nom du service
     SERVICE_NICKNAME = 'BotName'                            # Nick du bot sur IRC
     SERVICE_REALNAME = 'BotRealname'                        # Realname du bot
     SERVICE_USERNAME = 'BotIdent'                           # Ident du bot
@@ -45,7 +39,7 @@ class Config:
     WHITELISTED_IP = ['127.0.0.1']                          # IP a ne pas scanner
     GLINE_DURATION = '1d'                                   # La durée du gline
 
-    DEBUG = 0                                               # Afficher l'ensemble des messages du serveurs dans la console
+    DEBUG_LEVEL = 10                                        # Le niveau des logs DEBUG 10 | INFO 20 | WARNING 30 | ERROR 40 | CRITICAL 50
 
     CONFIG_COLOR = {
         'blanche': '\x0300',                                # Couleur blanche

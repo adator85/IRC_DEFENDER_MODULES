@@ -1,8 +1,9 @@
-import time, threading, os, random, socket, hashlib, ipaddress
+import time, threading, os, random, socket, hashlib, ipaddress, logging, requests, json, sys
 from datetime import datetime
 from sqlalchemy import create_engine, Engine, Connection, CursorResult
 from sqlalchemy.sql import text
 from core.configuration import Config
+from core.sys_configuration import SysConfig
 
 class Base:
 
@@ -19,6 +20,10 @@ class Base:
     def __init__(self, Config: Config) -> None:
 
         self.Config = Config                                    # Assigner l'objet de configuration
+        self.SysConfig = SysConfig()                            # Importer les information pour le systeme
+        self.init_log_system()                                  # Demarrer le systeme de log
+
+        self.get_latest_defender_version()
 
         self.running_timers:list[threading.Timer] = []          # Liste des timers en cours
         self.running_threads:list[threading.Thread] = []        # Liste des threads en cours
@@ -31,6 +36,26 @@ class Base:
         self.__create_db()                                      # Initialisation de la base de données
 
         self.db_create_first_admin()                            # Créer un nouvel admin si la base de données est vide
+
+    def get_latest_defender_version(self) -> None:
+        try:
+            #token = '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'
+            token = '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'
+            json_url = f'https://github.com/adator85/IRC_DEFENDER_MODULES/blob/e27a027ae99a6c11171635b2a120803e8682aac6/version.json'
+            headers = {
+                'Authorization': f'token {token}',
+                'Accept': 'application/vnd.github.v3.raw'  # Indique à GitHub que nous voulons le contenu brut du fichier
+            }
+            response = requests.get(json_url)
+            response.raise_for_status()  # Vérifie si la requête a réussi
+            json_response:dict = response.json()
+            self.SysConfig.LATEST_DEFENDER_VERSION = json_response["version"]
+
+            return None
+        except requests.HTTPError as err:
+            self.logs.error(f'Github not available to fetch latest version: {err}')
+        except:
+            self.logs.warning(f'Github not available to fetch latest version')
 
     def get_unixtime(self) -> int:
         """
@@ -62,12 +87,36 @@ class Base:
 
         return None
 
+    def init_log_system(self) -> None:
+        # Create folder if not available
+        logs_directory = f'logs{os.sep}'
+        if not os.path.exists(f'{logs_directory}'):
+            os.makedirs(logs_directory)
+
+        # Init logs object
+        self.logs = logging
+        self.logs.basicConfig(level=self.Config.DEBUG_LEVEL,
+                              filename='logs/defender.log',
+                              encoding='UTF-8',
+                              format='%(asctime)s - %(levelname)s - %(filename)s - %(lineno)d - %(funcName)s - %(message)s')
+
+        self.logs.info('#################### STARTING INTERCEPTOR HQ ####################')
+
+        return None
+
     def log_cmd(self, user_cmd:str, cmd:str) -> None:
         """Enregistre les commandes envoyées par les utilisateurs
 
         Args:
             cmd (str): la commande a enregistrer
         """
+        cmd_list = cmd.split()
+        if len(cmd_list) == 3:
+            if cmd_list[0].replace('.', '') == 'auth':
+                cmd_list[1] = '*******'
+                cmd_list[2] = '*******'
+                cmd = ' '.join(cmd_list)
+
         insert_cmd_query = f"INSERT INTO {self.DB_SCHEMA['commandes']} (datetime, user, commande) VALUES (:datetime, :user, :commande)"
         mes_donnees = {'datetime': self.get_datetime(), 'user': user_cmd, 'commande': cmd}
         self.db_execute_query(insert_cmd_query, mes_donnees)
@@ -100,13 +149,13 @@ class Base:
         """
 
         if not self.db_isModuleExist(module_name):
-            self.__debug(f"Le module {module_name} n'existe pas alors ont le créer")
+            self.logs.debug(f"Le module {module_name} n'existe pas alors ont le créer")
             insert_cmd_query = f"INSERT INTO {self.DB_SCHEMA['modules']} (datetime, user, module) VALUES (:datetime, :user, :module)"
             mes_donnees = {'datetime': self.get_datetime(), 'user': user_cmd, 'module': module_name}
             self.db_execute_query(insert_cmd_query, mes_donnees)
             # self.db_close_session(self.session)
         else:
-            self.__debug(f"Le module {module_name} existe déja dans la base de données")
+            self.logs.debug(f"Le module {module_name} existe déja dans la base de données")
 
         return False
 
@@ -148,10 +197,10 @@ class Base:
 
             self.running_timers.append(t)
 
-            self.__debug(f"Timer ID : {str(t.ident)} | Running Threads : {len(threading.enumerate())}")
+            self.logs.debug(f"Timer ID : {str(t.ident)} | Running Threads : {len(threading.enumerate())}")
 
         except AssertionError as ae:
-            self.__debug(f'Assertion Error -> {ae}')
+            self.logs.error(f'Assertion Error -> {ae}')
 
     def create_thread(self, func:object, func_args: tuple = (), run_once:bool = False) -> None:
         try:
@@ -170,98 +219,95 @@ class Base:
             th.start()
 
             self.running_threads.append(th)
-            self.__debug(f"Thread ID : {str(th.ident)} | Thread name : {th.getName()} | Running Threads : {len(threading.enumerate())}")
+            self.logs.debug(f"Thread ID : {str(th.ident)} | Thread name : {th.getName()} | Running Threads : {len(threading.enumerate())}")
 
         except AssertionError as ae:
-            self.__debug(f'Assertion Error -> {ae}')
+            self.logs.error(f'{ae}')
 
     def garbage_collector_timer(self) -> None:
         """Methode qui supprime les timers qui ont finis leurs job
         """
         try:
-            # self.__debug(f"=======> Checking for Timers to stop")
-            # print(f"{self.running_timers}")
+
             for timer in self.running_timers:
                 if not timer.is_alive():
                     timer.cancel()
                     self.running_timers.remove(timer)
-                    self.__debug(f"Timer {str(timer)} removed")
+                    self.logs.info(f"Timer {str(timer)} removed")
                 else:
-                    self.__debug(f"===> Timer {str(timer)} Still running ...")
+                    self.logs.debug(f"===> Timer {str(timer)} Still running ...")
 
         except AssertionError as ae:
-            print(f'Assertion Error -> {ae}')
+            self.logs.error(f'Assertion Error -> {ae}')
 
     def garbage_collector_thread(self) -> None:
         """Methode qui supprime les threads qui ont finis leurs job
         """
         try:
-            # self.__debug(f"=======> Checking for Threads to stop")
             for thread in self.running_threads:
                 if thread.getName() != 'heartbeat':
                     if not thread.is_alive():
                         self.running_threads.remove(thread)
-                        self.__debug(f"Thread {str(thread.getName())} {str(thread.native_id)} removed")
+                        self.logs.debug(f"Thread {str(thread.getName())} {str(thread.native_id)} removed")
 
             # print(threading.enumerate())
         except AssertionError as ae:
-            self.__debug(f'Assertion Error -> {ae}')
+            self.logs.error(f'Assertion Error -> {ae}')
 
     def garbage_collector_sockets(self) -> None:
 
-        # self.__debug(f"=======> Checking for Sockets to stop")
         for soc in self.running_sockets:
             while soc.fileno() != -1:
-                self.__debug(soc.fileno())
+                self.logs.debug(soc.fileno())
                 soc.close()
 
             soc.close()
             self.running_sockets.remove(soc)
-            self.__debug(f"Socket ==> closed {str(soc.fileno())}")
+            self.logs.debug(f"Socket ==> closed {str(soc.fileno())}")
 
     def shutdown(self) -> None:
         """Methode qui va préparer l'arrêt complêt du service
         """
         # Nettoyage des timers
-        print(f"=======> Checking for Timers to stop")
+        self.logs.debug(f"=======> Checking for Timers to stop")
         for timer in self.running_timers:
             while timer.is_alive():
-                print(f"> waiting for {timer.getName()} to close")
+                self.logs.debug(f"> waiting for {timer.getName()} to close")
                 timer.cancel()
                 time.sleep(0.2)
             self.running_timers.remove(timer)
-            print(f"> Cancelling {timer.getName()} {timer.native_id}")
+            self.logs.debug(f"> Cancelling {timer.getName()} {timer.native_id}")
 
-        print(f"=======> Checking for Threads to stop")
+        self.logs.debug(f"=======> Checking for Threads to stop")
         for thread in self.running_threads:
             if thread.getName() == 'heartbeat' and thread.is_alive():
                 self.execute_periodic_action()
-                print(f"> Running the last periodic action")
+                self.logs.debug(f"> Running the last periodic action")
             self.running_threads.remove(thread)
-            print(f"> Cancelling {thread.getName()} {thread.native_id}")
+            self.logs.debug(f"> Cancelling {thread.getName()} {thread.native_id}")
 
-        print(f"=======> Checking for Sockets to stop")
+        self.logs.debug(f"=======> Checking for Sockets to stop")
         for soc in self.running_sockets:
             soc.close()
             while soc.fileno() != -1:
                 soc.close()
 
             self.running_sockets.remove(soc)
-            print(f"> Socket ==> closed {str(soc.fileno())}")
+            self.logs.debug(f"> Socket ==> closed {str(soc.fileno())}")
 
         return None
 
     def db_init(self) -> tuple[Engine, Connection]:
 
-        db_directory = self.Config.DEFENDER_DB_PATH
-        full_path_db = self.Config.DEFENDER_DB_PATH + self.Config.DEFENDER_DB_NAME
+        db_directory = self.SysConfig.DEFENDER_DB_PATH
+        full_path_db = self.SysConfig.DEFENDER_DB_PATH + self.SysConfig.DEFENDER_DB_NAME
 
         if not os.path.exists(db_directory):
             os.makedirs(db_directory)
 
         engine = create_engine(f'sqlite:///{full_path_db}.db', echo=False)
         cursor = engine.connect()
-
+        self.logs.info("database connexion has been initiated")
         return engine, cursor
 
     def __create_db(self) -> None:
@@ -325,7 +371,7 @@ class Base:
         try:
             self.cursor.close()
         except AttributeError as ae:
-            self.__debug(f"Attribute Error : {ae}")
+            self.logs.error(f"Attribute Error : {ae}")
 
     def crypt_password(self, password:str) -> str:
         """Retourne un mot de passe chiffré en MD5
@@ -396,10 +442,3 @@ class Base:
 
         # Vider le dictionnaire de fonction
         self.periodic_func.clear()
-
-    def __debug(self, debug_msg:str) -> None:
-
-        if self.Config.DEBUG == 1:
-            print(f"[{self.get_datetime()}] - {debug_msg}")
-
-        return None
