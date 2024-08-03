@@ -77,32 +77,34 @@ class Base:
             self.logs.warning(f'Github not available to fetch latest version')
 
     def check_for_new_version(self) -> bool:
+        try:
+            # Assigner la version actuelle de Defender
+            self.__set_current_defender_version() 
+            # Récuperer la dernier version disponible dans github
+            self.__get_latest_defender_version()
 
-        # Assigner la version actuelle de Defender
-        self.__set_current_defender_version() 
-        # Récuperer la dernier version disponible dans github
-        self.__get_latest_defender_version()
-
-        isNewVersion = False
-        latest_version = self.LATEST_DEFENDER_VERSION
-        current_version = self.DEFENDER_VERSION
-        
-        curr_major, curr_minor, curr_patch = current_version.split('.')
-        last_major, last_minor, last_patch = latest_version.split('.')
-
-        if last_major > curr_major:
-            self.logs.info(f'New version available: {current_version} >>> {latest_version}')
-            isNewVersion = True
-        elif last_major == curr_major and last_minor > curr_minor:
-            self.logs.info(f'New version available: {current_version} >>> {latest_version}')
-            isNewVersion = True
-        elif last_major == curr_major and last_minor == curr_minor and last_patch > curr_patch:
-            self.logs.info(f'New version available: {current_version} >>> {latest_version}')
-            isNewVersion = True
-        else:
             isNewVersion = False
+            latest_version = self.LATEST_DEFENDER_VERSION
+            current_version = self.DEFENDER_VERSION
 
-        return isNewVersion
+            curr_major , curr_minor, curr_patch = current_version.split('.')
+            last_major, last_minor, last_patch = latest_version.split('.')
+
+            if int(last_major) > int(curr_major):
+                self.logs.info(f'New version available: {current_version} >>> {latest_version}')
+                isNewVersion = True
+            elif int(last_major) == int(curr_major) and int(last_minor) > int(curr_minor):
+                self.logs.info(f'New version available: {current_version} >>> {latest_version}')
+                isNewVersion = True
+            elif int(last_major) == int(curr_major) and int(last_minor) == int(curr_minor) and int(last_patch) > int(curr_patch):
+                self.logs.info(f'New version available: {current_version} >>> {latest_version}')
+                isNewVersion = True
+            else:
+                isNewVersion = False
+
+            return isNewVersion
+        except ValueError as ve:
+            self.logs.error(f'Impossible to convert in version number : {ve}')
 
     def get_unixtime(self) -> int:
         """
