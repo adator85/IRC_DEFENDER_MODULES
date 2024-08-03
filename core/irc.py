@@ -28,8 +28,8 @@ class Irc:
 
         # Liste des commandes internes du bot
         self.commands_level = {
-            0: ['help', 'auth', 'copyright','checkversion'],
-            1: ['load','reload','unload', 'deauth', 'uptime'],
+            0: ['help', 'auth', 'copyright'],
+            1: ['load','reload','unload', 'deauth', 'uptime', 'checkversion'],
             2: ['show_modules', 'show_timers', 'show_threads', 'sentinel'],
             3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
         }
