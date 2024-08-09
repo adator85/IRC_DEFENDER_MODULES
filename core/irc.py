@@ -3,6 +3,7 @@ from ssl import SSLSocket
 from datetime import datetime, timedelta
 from typing import Union
 from core.loadConf import Config
+from core.Model import User, Admin
 from core.base import Base
 
 class Irc:
@@ -10,8 +11,9 @@ class Irc:
     def __init__(self) -> 'Irc':
 
         self.defender_connexion_datetime = datetime.now()   # Date et heure de la premiere connexion de Defender
-        self.db_uid = {}                                    # Definir la variable qui contiendra la liste des utilisateurs connectés au réseau
-        self.db_admin = {}                                  # Definir la variable qui contiendra la liste des administrateurs
+        self.first_score: int = 100
+        #self.db_uid = {}                                    # Definir la variable qui contiendra la liste des utilisateurs connectés au réseau
+        #self.db_admin = {}                                  # Definir la variable qui contiendra la liste des administrateurs
         self.db_chan = []                                   # Definir la variable qui contiendra la liste des salons
         self.loaded_classes:dict[str, 'Irc'] = {}           # Definir la variable qui contiendra la liste modules chargés
         self.beat = 30                                      # Lancer toutes les 30 secondes des actions de nettoyages
@@ -24,7 +26,7 @@ class Irc:
         self.CHARSET = ['utf-8', 'iso-8859-1']              # Charset utiliser pour décoder/encoder les messages
         self.SSL_VERSION = None                             # Version SSL
 
-        self.Config = Config().ConfigModel
+        self.Config = Config().ConfigObject
 
         # Liste des commandes internes du bot
         self.commands_level = {
@@ -41,6 +43,8 @@ class Irc:
                 self.commands.append(command)
 
         self.Base = Base(self.Config)
+        self.User = User(self.Base)
+        self.Admin = Admin(self.Base)
         self.Base.create_thread(func=self.heartbeat, func_args=(self.beat, ))
 
     ##############################################
@@ -113,7 +117,7 @@ class Irc:
 
                         # Reload configuration
                         self.Base.logs.debug('Reloading configuration')
-                        self.Config = Config().ConfigModel
+                        self.Config = Config().ConfigObject
                         self.Base = Base(self.Config)
 
                         self.__create_socket()
@@ -186,7 +190,7 @@ class Irc:
             sid = self.Config.SERVEUR_ID
             service_id = self.Config.SERVICE_ID
 
-            version = self.Base.DEFENDER_VERSION
+            version = self.Config.current_version
             unixtime = self.Base.get_unixtime()
 
             # Envoyer un message d'identification
@@ -262,7 +266,7 @@ class Irc:
         Returns:
             None: Aucun retour requis, elle charge puis c'est tout
         """
-        result = self.Base.db_execute_query(f"SELECT module FROM {self.Base.DB_SCHEMA['modules']}")
+        result = self.Base.db_execute_query(f"SELECT module FROM {self.Config.table_module}")
         for r in result.fetchall():
             self.load_module('sys', r[0], True)
 
@@ -399,120 +403,42 @@ class Irc:
         except Exception as e:
             self.Base.logs.error(f"Something went wrong with a module you want to load : {e}")
 
-    def insert_db_uid(self, uid:str, nickname:str, username:str, hostname:str, umodes:str, vhost:str, isWebirc: bool) -> None:
-
-        if uid in self.db_uid:
-            return None
-
-        self.db_uid[uid] = {
-            'nickname': nickname,
-            'username': username,
-            'hostname': hostname,
-            'umodes': umodes,
-            'vhost': vhost,
-            'isWebirc': isWebirc,
-            'datetime': datetime.now()
-        }
-
-        self.db_uid[nickname] = {
-            'uid': uid,
-            'username': username,
-            'hostname': hostname,
-            'umodes': umodes,
-            'vhost': vhost,
-            'isWebirc': isWebirc,
-            'datetime': datetime.now()
-        }
-
-        return None
-
-    def update_db_uid(self, uid:str, newnickname:str) -> None:
-
-        # Récupérer l'ancien nickname
-        oldnickname = self.db_uid[uid]['nickname']
-
-        # Enregistrement du nouveau nickname
-        self.db_uid[newnickname] = {
-            'uid': uid,
-            'username': self.db_uid[uid]['username'],
-            'hostname': self.db_uid[uid]['hostname'],
-            'umodes': self.db_uid[uid]['umodes'],
-            'vhost': self.db_uid[uid]['vhost']
-        }
-
-        # Modification du nickname dans la ligne UID 
-        self.db_uid[uid]['nickname'] = newnickname
-
-        # Supprimer l'ancien nickname
-        if oldnickname in self.db_uid:
-            del self.db_uid[oldnickname]
-        else:
-            self.Base.logs.debug(f"L'ancien nickname {oldnickname} n'existe pas dans UID_DB")
-            response = False
-
-        self.Base.logs.debug(f"{oldnickname} changed to {newnickname}")
-
-        return None
-
-    def delete_db_uid(self, uid:str) -> None:
-
-        uid_reel = self.get_uid(uid)
-        nickname = self.get_nickname(uid_reel)
-
-        if uid_reel in self.db_uid:
-            del self.db_uid[uid]
-
-        if nickname in self.db_uid:
-            del self.db_uid[nickname]
-
-        return None
-
     def insert_db_admin(self, uid:str, level:int) -> None:
 
-        if not uid in self.db_uid:
+        if self.User.get_User(uid) is None:
             return None
+        
+        getUser = self.User.get_User(uid)
 
-        nickname = self.db_uid[uid]['nickname']
-        username = self.db_uid[uid]['username']
-        hostname = self.db_uid[uid]['hostname']
-        umodes = self.db_uid[uid]['umodes']
-        vhost = self.db_uid[uid]['vhost']
+        nickname = getUser.nickname
+        username = getUser.username
+        hostname = getUser.hostname
+        umodes = getUser.umodes
+        vhost = getUser.vhost
         level = int(level)
 
-        self.db_admin[uid] = {
-            'nickname': nickname,
-            'username': username,
-            'hostname': hostname,
-            'umodes': umodes,
-            'vhost': vhost,
-            'datetime': self.Base.get_datetime(),
-            'level': level
-        }
-
-        self.db_admin[nickname] = {
-            'uid': uid,
-            'username': username,
-            'hostname': hostname,
-            'umodes': umodes,
-            'vhost': vhost,
-            'datetime': self.Base.get_datetime(),
-            'level': level
-        }
+        self.Admin.insert(
+            self.Admin.AdminModel(
+                uid=uid,
+                nickname=nickname,
+                username=username,
+                hostname=hostname,
+                umodes=umodes,
+                vhost=vhost,
+                level=level,
+                connexion_datetime=datetime.now()
+            )
+        )
 
         return None
 
     def delete_db_admin(self, uid:str) -> None:
 
-        if not uid in self.db_admin:
+        if self.Admin.get_Admin(uid) is None:
             return None
 
-        nickname_admin = self.db_admin[uid]['nickname']
-
-        if uid in self.db_admin:
-            del self.db_admin[uid]
-
-        if nickname_admin in self.db_admin:
-            del self.db_admin[nickname_admin]
+        if not self.Admin.delete(uid):
+            self.Base.logs.critical(f'UID: {uid} was not deleted')
 
         return None
 
@@ -541,7 +467,7 @@ class Irc:
 
     def create_defender_user(self, nickname:str, level: int, password:str) -> str:
 
-        nickname = self.get_nickname(nickname)
+        nickname = self.User.get_nickname(nickname)
         response = ''
 
         if level > 4:
@@ -560,14 +486,14 @@ class Irc:
         spassword = self.Base.crypt_password(password)
 
         mes_donnees = {'admin': nickname}
-        query_search_user = f"SELECT id FROM {self.Base.DB_SCHEMA['admins']} WHERE user=:admin"
+        query_search_user = f"SELECT id FROM {self.Config.table_admin} WHERE user=:admin"
         r = self.Base.db_execute_query(query_search_user, mes_donnees)
         exist_user = r.fetchone()
 
         # On verifie si le user exist dans la base
         if not exist_user:
             mes_donnees = {'datetime': self.Base.get_datetime(), 'user': nickname, 'password': spassword, 'hostname': hostname, 'vhost': vhost, 'level': level}
-            self.Base.db_execute_query(f'''INSERT INTO {self.Base.DB_SCHEMA['admins']} 
+            self.Base.db_execute_query(f'''INSERT INTO {self.Config.table_admin} 
                     (createdOn, user, password, hostname, vhost, level) VALUES
                     (:datetime, :user, :password, :hostname, :vhost, :level)
                     ''', mes_donnees)
@@ -581,41 +507,15 @@ class Irc:
             self.Base.logs.info(response)
             return response
 
-    def get_uid(self, uidornickname:str) -> Union[str, None]:
-
-        uid_recherche = uidornickname
-        response = None
-        for uid, value in self.db_uid.items():
-            if uid == uid_recherche:
-                if 'nickname' in value:
-                    response = uid
-                if 'uid' in value:
-                    response = value['uid']
-
-        return response
-
-    def get_nickname(self, uidornickname:str) -> Union[str, None]:
-
-        nickname_recherche = uidornickname
-
-        response = None
-        for nickname, value in self.db_uid.items():
-            if nickname == nickname_recherche:
-                if 'nickname' in value:
-                    response = value['nickname']
-                if 'uid' in value:
-                    response = nickname
-
-        return response
-
-    def is_cmd_allowed(self,nickname:str, cmd:str) -> bool:
+    def is_cmd_allowed(self, nickname:str, cmd:str) -> bool:
 
         # Vérifier si le user est identifié et si il a les droits
         is_command_allowed = False
-        uid = self.get_uid(nickname)
+        uid = self.User.get_uid(nickname)
+        get_admin = self.Admin.get_Admin(uid)
 
-        if uid in self.db_admin:
-            admin_level = self.db_admin[uid]['level']
+        if not get_admin is None:
+            admin_level = get_admin.level
 
             for ref_level, ref_commands in self.commands_level.items():
                 # print(f"LevelNo: {ref_level} - {ref_commands} - {admin_level}")
@@ -649,6 +549,18 @@ class Irc:
         mes_donnees = {'datetime': self.Base.get_datetime(), 'server_msg': log_msg}
         self.Base.db_execute_query('INSERT INTO sys_logs (datetime, server_msg) VALUES (:datetime, :server_msg)', mes_donnees)
 
+        return None
+
+    def thread_check_for_new_version(self, fromuser: str) -> None:
+
+        dnickname = self.Config.SERVICE_NICKNAME
+
+        if self.Base.check_for_new_version(True):
+            self.send2socket(f':{dnickname} NOTICE {fromuser} : New Version available : {self.Config.current_version} >>> {self.Config.latest_version}')
+            self.send2socket(f':{dnickname} NOTICE {fromuser} : Please run (git pull origin main) in the current folder')
+        else:
+            self.send2socket(f':{dnickname} NOTICE {fromuser} : You have the latest version of defender')
+        
         return None
 
     def cmd(self, data:list) -> None:
@@ -713,6 +625,8 @@ class Irc:
                     try:
                         # if self.Config.ABUSEIPDB == 1:
                         #     self.Base.create_thread(self.abuseipdb_scan, (cmd[2], ))
+                        self.first_connexion_ip = cmd[2]
+                        self.first_score = cmd[3]
                         pass
                         # Possibilité de déclancher les bans a ce niveau.
                     except IndexError as ie:
@@ -735,10 +649,13 @@ class Irc:
                     hsid = str(cmd[0]).replace(':','')
                     if hsid == self.HSID:
                         if self.INIT == 1:
-                            if self.Base.check_for_new_version():
-                                version = f'{self.Base.DEFENDER_VERSION} >>> {self.Base.LATEST_DEFENDER_VERSION}'
+                            current_version = self.Config.current_version
+                            latest_version = self.Config.latest_version
+
+                            if current_version != latest_version:
+                                version = f'{current_version} >>> {latest_version}'
                             else:
-                                version = f'{self.Base.DEFENDER_VERSION}'
+                                version = f'{current_version}'
 
                             self.send2socket(f"MODE {self.Config.SERVICE_NICKNAME} +B")
                             self.send2socket(f"JOIN {self.Config.SERVICE_CHANLOG}")
@@ -764,13 +681,11 @@ class Irc:
                             self.Base.logs.info(f"# VERSION  :    {version}                       ")
                             self.Base.logs.info(f"################################################")
                             
-                            if self.Base.check_for_new_version():
+                            if self.Base.check_for_new_version(False):
                                 self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} : New Version available {version}")
 
                         # Initialisation terminé aprés le premier PING
                         self.INIT = 0
-                        # self.send2socket(f':{self.Config.SERVICE_ID} PING :{hsid}')
-                        # print(self.db_uid)
 
                 case _:
                     pass
@@ -784,7 +699,7 @@ class Irc:
                     # :001N1WD7L QUIT :Quit: free_znc_1
                     cmd.pop(0)
                     uid_who_quit = str(cmd[0]).replace(':', '')
-                    self.delete_db_uid(uid_who_quit)
+                    self.User.delete(uid_who_quit)
 
                 case 'PONG':
                     # ['@msgid=aTNJhp17kcPboF5diQqkUL;time=2023-12-28T20:35:58.411Z', ':irc.deb.biz.st', 'PONG', 'irc.deb.biz.st', ':Dev-PyDefender']
@@ -798,8 +713,7 @@ class Irc:
                     cmd.pop(0)
                     uid = str(cmd[0]).replace(':','')
                     newnickname = cmd[2]
-
-                    self.update_db_uid(uid, newnickname)
+                    self.User.update(uid, newnickname)
 
                 case 'SJOIN':
                     # ['@msgid=ictnEBhHmTUHzkEeVZl6rR;time=2023-12-28T20:03:18.482Z', ':001', 'SJOIN', '1702139101', '#stats', '+nst', ':@001SB890A', '@00BAAAAAI']
@@ -808,7 +722,9 @@ class Irc:
                     self.insert_db_chan(channel)
 
                 case 'UID':
-
+                    # ['@s2s-md/geoip=cc=GB|cd=United\\sKingdom|asn=16276|asname=OVH\\sSAS;s2s-md/tls_cipher=TLSv1.3-TLS_CHACHA20_POLY1305_SHA256;s2s-md/creationtime=1721564601', 
+                    # ':001', 'UID', 'albatros', '0', '1721564597', 'albatros', 'vps-91b2f28b.vps.ovh.net', 
+                    # '001HB8G04', '0', '+iwxz', 'Clk-A62F1D18.vps.ovh.net', 'Clk-A62F1D18.vps.ovh.net', 'MyZBwg==', ':...']
                     if 'webirc' in cmd[0]:
                         isWebirc = True
                     else:
@@ -820,8 +736,27 @@ class Irc:
                     hostname = str(cmd[7])
                     umodes = str(cmd[10])
                     vhost = str(cmd[11])
+                    if not 'S' in umodes:
+                        remote_ip = self.Base.decode_ip(str(cmd[13]))
+                    else:
+                        remote_ip = '127.0.0.1'
 
-                    self.insert_db_uid(uid, nickname, username, hostname, umodes, vhost, isWebirc)
+                    score_connexion = str(self.first_score)
+
+                    self.User.insert(
+                        self.User.UserModel(
+                            uid=uid,
+                            nickname=nickname,
+                            username=username,
+                            hostname=hostname,
+                            umodes=umodes,
+                            vhost=vhost,
+                            isWebirc=isWebirc,
+                            remote_ip=remote_ip,
+                            score_connexion=score_connexion,
+                            connexion_datetime=datetime.now()
+                        )
+                    )
 
                     for classe_name, classe_object in self.loaded_classes.items():
                         classe_object.cmd(cmd_to_send)
@@ -842,7 +777,8 @@ class Irc:
                         else:
                             self.Base.logs.info(f'{cmd}')
                         # user_trigger = get_user.split('!')[0]
-                        user_trigger = self.get_nickname(get_uid_or_nickname)
+                        # user_trigger = self.get_nickname(get_uid_or_nickname)
+                        user_trigger = self.User.get_nickname(get_uid_or_nickname)
                         dnickname = self.Config.SERVICE_NICKNAME
 
                         pattern = fr'(:\{self.Config.SERVICE_PREFIX})(.*)$'
@@ -874,7 +810,7 @@ class Irc:
 
                                 # Réponse a un CTCP VERSION
                                 if arg[0] == '\x01VERSION\x01':
-                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01VERSION Service {self.Config.SERVICE_NICKNAME} V{self.Base.DEFENDER_VERSION}\x01')
+                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01VERSION Service {self.Config.SERVICE_NICKNAME} V{self.Config.current_version}\x01')
                                     return False
 
                                 # Réponse a un TIME
@@ -896,7 +832,7 @@ class Irc:
                                     return False
 
                                 cmd_to_send = convert_to_string.replace(':','')
-                                self.Base.log_cmd(self.get_nickname(user_trigger), cmd_to_send)
+                                self.Base.log_cmd(self.User.get_nickname(user_trigger), cmd_to_send)
 
                                 self._hcmds(user_trigger, arg)
 
@@ -916,8 +852,8 @@ class Irc:
 
     def _hcmds(self, user: str, cmd:list) -> None:
 
-        fromuser = self.get_nickname(user)                                        # Nickname qui a lancé la commande
-        uid = self.get_uid(fromuser)                                              # Récuperer le uid de l'utilisateur
+        fromuser = self.User.get_nickname(user)                                        # Nickname qui a lancé la commande
+        uid = self.User.get_uid(fromuser)                                              # Récuperer le uid de l'utilisateur
 
         # Defender information
         dnickname = self.Config.SERVICE_NICKNAME                                  # Defender nickname
@@ -942,7 +878,7 @@ class Irc:
             case 'notallowed':
                 try:
                     current_command = cmd[0]
-                    self.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["rouge"]}{current_command}{self.Config.CONFIG_COLOR["noire"]} ] - Accès Refusé à {self.get_nickname(fromuser)}')
+                    self.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["rouge"]}{current_command}{self.Config.CONFIG_COLOR["noire"]} ] - Accès Refusé à {self.User.get_nickname(fromuser)}')
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : Accès Refusé')
                 except IndexError as ie:
                     self.Base.logs.error(f'{ie}')
@@ -950,29 +886,29 @@ class Irc:
             case 'deauth':
 
                 current_command = cmd[0]
-                uid_to_deauth = self.get_uid(fromuser)
+                uid_to_deauth = self.User.get_uid(fromuser)
                 self.delete_db_admin(uid_to_deauth)
-                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
+                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
 
             case 'auth':
                 # ['auth', 'adator', 'password']
                 current_command = cmd[0]
-                user_to_log = self.get_nickname(cmd[1])
+                user_to_log = self.User.get_nickname(cmd[1])
                 password = cmd[2]
 
                 if not user_to_log is None:
                     mes_donnees = {'user': user_to_log, 'password': self.Base.crypt_password(password)}
-                    query = f"SELECT id, level FROM {self.Base.DB_SCHEMA['admins']} WHERE user = :user AND password = :password"
+                    query = f"SELECT id, level FROM {self.Config.table_admin} WHERE user = :user AND password = :password"
                     result = self.Base.db_execute_query(query, mes_donnees)
                     user_from_db = result.fetchone()
 
                     if not user_from_db is None:
-                        uid_user = self.get_uid(user_to_log)
+                        uid_user = self.User.get_uid(user_to_log)
                         self.insert_db_admin(uid_user, user_from_db[1])
-                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.get_nickname(fromuser)} est désormais connecté a {dnickname}")
+                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Connexion a {dnickname} réussie!")
                     else:
-                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.get_nickname(fromuser)} a tapé un mauvais mot de pass")
+                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Mot de passe incorrecte")
 
                 else:
@@ -1007,9 +943,14 @@ class Irc:
                         self.send2socket(f':{dnickname} NOTICE {fromuser} : .editaccess [USER] [NEWPASSWORD] [NEWLEVEL]')
                         return None
 
-                    current_user = self.get_nickname(fromuser)
-                    current_uid = self.get_uid(fromuser)
-                    current_user_level = self.db_admin[current_uid]['level']
+                    get_admin = self.Admin.get_Admin(fromuser)
+                    if get_admin is None:
+                        self.send2socket(f':{dnickname} NOTICE {fromuser} : This user {fromuser} has no Admin access')
+                        return None
+
+                    current_user = self.User.get_nickname(fromuser)
+                    current_uid = self.User.get_uid(fromuser)
+                    current_user_level = get_admin.level
 
                     if user_new_level > 5:
                         self.send2socket(f':{dnickname} NOTICE {fromuser} : Maximum authorized level is 5')
@@ -1017,7 +958,7 @@ class Irc:
 
                     # Rechercher le user dans la base de données.
                     mes_donnees = {'user': user_to_edit}
-                    query = f"SELECT user, level FROM {self.Base.DB_SCHEMA['admins']} WHERE user = :user"
+                    query = f"SELECT user, level FROM {self.Config.table_admin} WHERE user = :user"
                     result = self.Base.db_execute_query(query, mes_donnees)
 
                     isUserExist = result.fetchone()
@@ -1033,7 +974,7 @@ class Irc:
 
                         # Le user existe dans la base de données
                         data_to_update = {'user': user_to_edit, 'password': user_password, 'level': user_new_level}
-                        sql_update = f"UPDATE {self.Base.DB_SCHEMA['admins']} SET level = :level, password = :password WHERE user = :user"
+                        sql_update = f"UPDATE {self.Config.table_admin} SET level = :level, password = :password WHERE user = :user"
                         exec_query = self.Base.db_execute_query(sql_update, data_to_update)
                         if exec_query.rowcount > 0:
                             self.send2socket(f':{dnickname} NOTICE {fromuser} : User {user_to_edit} has been modified with level {str(user_new_level)}')
@@ -1059,14 +1000,20 @@ class Irc:
                 if len(cmd) < 3:
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : .delaccess [USER] [CONFIRMUSER]')
                     return None
+                
+                get_admin = self.Admin.get_Admin(fromuser)
+                
+                if get_admin is None:
+                    self.send2socket(f':{dnickname} NOTICE {fromuser} : This user {fromuser} has no admin access')
+                    return None
 
-                current_user = self.get_nickname(fromuser)
-                current_uid = self.get_uid(fromuser)
-                current_user_level = self.db_admin[current_uid]['level']
+                current_user = self.User.get_nickname(fromuser)
+                current_uid = self.User.get_uid(fromuser)
+                current_user_level = get_admin.level
 
                 # Rechercher le user dans la base de données.
                 mes_donnees = {'user': user_to_del}
-                query = f"SELECT user, level FROM {self.Base.DB_SCHEMA['admins']} WHERE user = :user"
+                query = f"SELECT user, level FROM {self.Config.table_admin} WHERE user = :user"
                 result = self.Base.db_execute_query(query, mes_donnees)
                 info_user = result.fetchone()
                 
@@ -1078,7 +1025,7 @@ class Irc:
                         return None
 
                     data_to_delete = {'user': user_to_del}
-                    sql_delete = f"DELETE FROM {self.Base.DB_SCHEMA['admins']} WHERE user = :user"
+                    sql_delete = f"DELETE FROM {self.Config.table_admin} WHERE user = :user"
                     exec_query = self.Base.db_execute_query(sql_delete, data_to_delete)
                     if exec_query.rowcount > 0:
                         self.send2socket(f':{dnickname} NOTICE {fromuser} : User {user_to_del} has been deleted !')
@@ -1090,8 +1037,9 @@ class Irc:
 
                 help = ''
                 count_level_definition = 0
-                if uid in self.db_admin:
-                    user_level = self.db_admin[uid]['level']
+                get_admin = self.Admin.get_Admin(uid)
+                if not get_admin is None:
+                    user_level = get_admin.level
                 else:
                     user_level = 0
 
@@ -1223,7 +1171,7 @@ class Irc:
 
                 self.Base.logs.debug(self.loaded_classes)
 
-                results = self.Base.db_execute_query(f'SELECT module FROM {self.Base.DB_SCHEMA["modules"]}')
+                results = self.Base.db_execute_query(f'SELECT module FROM {self.Config.table_module}')
                 results = results.fetchall()
 
                 if len(results) == 0:
@@ -1253,7 +1201,7 @@ class Irc:
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : {uptime}')
 
             case 'copyright':
-                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Base.DEFENDER_VERSION} Developped by adator® and dktmb® #')
+                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Config.current_version} Developped by adator® and dktmb® #')
 
             case 'sentinel':
                 # .sentinel on
@@ -1273,12 +1221,10 @@ class Irc:
 
             case 'checkversion':
 
-                if self.Base.check_for_new_version():
-                    self.send2socket(f':{dnickname} NOTICE {fromuser} : New Version available : {self.Base.DEFENDER_VERSION} >>> {self.Base.LATEST_DEFENDER_VERSION}')
-                    self.send2socket(f':{dnickname} NOTICE {fromuser} : Please run (git pull origin main) in the current folder')
-                else:
-                    self.send2socket(f':{dnickname} NOTICE {fromuser} : You have the latest version of defender')
-                pass
+                self.Base.create_thread(
+                    self.thread_check_for_new_version,
+                    (fromuser, )
+                )
 
             case _:
                 pass

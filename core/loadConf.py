@@ -1,4 +1,5 @@
-import json, os
+import json
+from os import sep
 from typing import Union
 from dataclasses import dataclass, field
 
@@ -45,20 +46,44 @@ class ConfigDataModel:
 
     DEBUG_LEVEL: int                                        # Le niveau des logs DEBUG 10 | INFO 20 | WARNING 30 | ERROR 40 | CRITICAL 50
 
-    CONFIG_COLOR: dict
+    CONFIG_COLOR: dict[str, str]
+
+    table_admin: str
+    table_commande: str
+    table_log: str
+    table_module: str
+
+    current_version: str
+    latest_version: str
+    db_name: str
+    db_path: str
 
     def __post_init__(self):
         # Initialiser SERVICE_ID après la création de l'objet
         self.SERVICE_ID:str = f"{self.SERVEUR_ID}AAAAAB"
 
-
 class Config:
 
     def __init__(self):
 
-        import_config = self.__load_json_configuration()
+        self.ConfigObject: ConfigDataModel = self.__load_service_configuration()
+        return None
 
-        ConfigModel = ConfigDataModel(
+    def __load_json_service_configuration(self):
+
+        conf_filename = f'core{sep}configuration.json'
+        with open(conf_filename, 'r') as configuration_data:
+            configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
+
+        for key, value in configuration['CONFIG_COLOR'].items():
+            configuration['CONFIG_COLOR'][key] = value.encode('utf-8').decode('unicode_escape')
+        
+        return configuration
+    
+    def __load_service_configuration(self) -> ConfigDataModel:
+        import_config = self.__load_json_service_configuration()
+
+        ConfigObject: ConfigDataModel = ConfigDataModel(
             SERVEUR_IP=import_config["SERVEUR_IP"],
             SERVEUR_HOSTNAME=import_config["SERVEUR_HOSTNAME"],
             SERVEUR_LINK=import_config["SERVEUR_LINK"],
@@ -87,19 +112,15 @@ class Config:
             WHITELISTED_IP=import_config["WHITELISTED_IP"],
             GLINE_DURATION=import_config["GLINE_DURATION"],
             DEBUG_LEVEL=import_config["DEBUG_LEVEL"],
-            CONFIG_COLOR=import_config["CONFIG_COLOR"]
+            CONFIG_COLOR=import_config["CONFIG_COLOR"],
+            table_admin='sys_admins',
+            table_commande='sys_commandes',
+            table_log='sys_logs',
+            table_module='sys_modules',
+            current_version='',
+            latest_version='',
+            db_name='defender',
+            db_path=f'db{sep}'
         )
 
-        self.ConfigModel = ConfigModel
-        return None
-
-    def __load_json_configuration(self):
-
-        conf_filename = f'core{os.sep}configuration.json'
-        with open(conf_filename, 'r') as configuration_data:
-            configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
-
-        for key, value in configuration['CONFIG_COLOR'].items():
-            configuration['CONFIG_COLOR'][key] = value.encode('utf-8').decode('unicode_escape')
-        
-        return configuration
+        return ConfigObject

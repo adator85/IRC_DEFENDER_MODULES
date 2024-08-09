@@ -21,6 +21,7 @@ class Defender():
 
         self.Irc = ircInstance                                              # Ajouter l'object mod_irc a la classe ( Obligatoire )
         self.Config = ircInstance.Config                                    # Ajouter la configuration a la classe ( Obligatoire )
+        self.User = ircInstance.User                                        # Importer les liste des User connectés
         self.Base = ircInstance.Base                                        # Ajouter l'objet Base au module ( Obligatoire )
         self.timeout = self.Config.API_TIMEOUT                              # API Timeout
 
@@ -37,7 +38,7 @@ class Defender():
         self.localscan_isRunning:bool = True
         self.reputationTimer_isRunning:bool = True
 
-        self.Irc.Base.logs.info(f'Module {self.__class__.__name__} loaded ...')
+        self.Base.logs.info(f'Module {self.__class__.__name__} loaded ...')
 
         # Créer les nouvelles commandes du module
         self.commands_level = {
@@ -302,12 +303,12 @@ class Defender():
 
     def update_db_reputation(self, uidornickname:str, newnickname:str) -> None:
         
-        uid = self.Irc.get_uid(uidornickname)
+        uid = self.User.get_uid(uidornickname)
         currentDateTime = self.Base.get_datetime()
         secret_code = self.Base.get_random(8)
 
-        if not uid in self.Irc.db_uid:
-            self.Irc.Base.logs.error(f'Etrange UID {uid}')
+        if self.User.get_uid(uid) is None:
+            self.Base.logs.error(f'Etrange UID {uid}')
             return None
 
         if uid in self.db_reputation:
@@ -315,7 +316,7 @@ class Defender():
             self.db_reputation[uid]['updated_datetime'] = currentDateTime
             self.db_reputation[uid]['secret_code'] = secret_code
         else:
-            self.Irc.Base.logs.error(f"L'UID {uid} n'existe pas dans REPUTATION_DB")
+            self.Base.logs.error(f"L'UID {uid} n'existe pas dans REPUTATION_DB")
 
         return None
 
@@ -330,12 +331,12 @@ class Defender():
         if uid in self.db_reputation:
             # Si le nickname existe dans le dictionnaire alors le supprimer
             del self.db_reputation[uid]
-            self.Irc.Base.logs.debug(f"Le UID {uid} a été supprimé du REPUTATION_DB")
+            self.Base.logs.debug(f"Le UID {uid} a été supprimé du REPUTATION_DB")
 
     def insert_db_trusted(self, uid: str, nickname:str) -> None:
 
-        uid = self.Irc.get_uid(uid)
-        nickname = self.Irc.get_nickname(nickname)
+        uid = self.User.get_uid(uid)
+        nickname = self.User.get_nickname(nickname)
 
         query = "SELECT id FROM def_trusted WHERE user = ?"
         exec_query = self.Base.db_execute_query(query, {"user": nickname})
@@ -378,13 +379,12 @@ class Defender():
             int: Temps de connexion de l'utilisateur en secondes 
         """
 
-        get_uid = self.Irc.get_uid(uidornickname)
-        
-        if not get_uid in self.Irc.db_uid:
+        get_user = self.User.get_User(uidornickname)
+        if get_user is None:
             return 0
 
         # Convertir la date enregistrée dans UID_DB en un objet {datetime}
-        connected_time_string = self.Irc.db_uid[get_uid]['datetime']
+        connected_time_string = get_user.connexion_datetime
         if type(connected_time_string) == datetime:
             connected_time = connected_time_string
         else:
@@ -439,15 +439,15 @@ class Defender():
                             self.Irc.send2socket(f":{service_id} MODE {chan} +b {jailed_nickname}!*@*")
                             self.Irc.send2socket(f":{service_id} KICK {chan} {jailed_nickname}")
 
-                self.Irc.Base.logs.info(f"system_reputation : {jailed_nickname} à été capturé par le système de réputation")
+                self.Base.logs.info(f"system_reputation : {jailed_nickname} à été capturé par le système de réputation")
                 # self.Irc.create_ping_timer(int(self.defConfig['reputation_timer']) * 60, 'Defender', 'system_reputation_timer')
                 # self.Base.create_timer(int(self.defConfig['reputation_timer']) * 60, self.system_reputation_timer)
             else:
-                self.Irc.Base.logs.info(f"system_reputation : {jailed_nickname} à été supprimé du système de réputation car connecté via WebIrc ou il est dans la 'Trusted list'")
+                self.Base.logs.info(f"system_reputation : {jailed_nickname} à été supprimé du système de réputation car connecté via WebIrc ou il est dans la 'Trusted list'")
                 self.delete_db_reputation(uid)
 
         except IndexError as e:
-            self.Irc.Base.logs.error(f"system_reputation : {str(e)}")
+            self.Base.logs.error(f"system_reputation : {str(e)}")
 
     def system_reputation_timer(self) -> None:
         try:
@@ -488,11 +488,11 @@ class Defender():
                         self.Irc.send2socket(f":{service_id} MODE {chan} -b {self.db_reputation[uid]['nickname']}!*@*")
 
                 # Lorsqu'un utilisateur quitte, il doit être supprimé de {UID_DB}.
-                self.Irc.delete_db_uid(uid)
+                self.User.delete(uid)
                 self.delete_db_reputation(uid)
 
         except AssertionError as ae:
-            self.Irc.Base.logs.error(f'Assertion Error -> {ae}')
+            self.Base.logs.error(f'Assertion Error -> {ae}')
 
     def thread_reputation_timer(self) -> None:
         try:
@@ -542,8 +542,8 @@ class Defender():
         color_red = self.Config.CONFIG_COLOR['rouge']
         color_bold = self.Config.CONFIG_COLOR['gras']
         
-        get_detected_uid = self.Irc.get_uid(detected_user)
-        get_detected_nickname = self.Irc.get_nickname(detected_user)
+        get_detected_uid = self.User.get_uid(detected_user)
+        get_detected_nickname = self.User.get_nickname(detected_user)
         
         unixtime = self.Base.get_unixtime()
         get_diff_secondes = 0
@@ -961,7 +961,7 @@ class Defender():
                 cmd.pop(0)
                 user_trigger = str(cmd[0]).replace(':','')
                 channel = cmd[2]
-                find_nickname = self.Irc.get_nickname(user_trigger)
+                find_nickname = self.User.get_nickname(user_trigger)
                 self.flood(find_nickname, channel)
 
             case 'UID':
@@ -1130,8 +1130,8 @@ class Defender():
             case 'code':
                 try:
                     release_code = cmd[1]
-                    jailed_nickname = self.Irc.get_nickname(fromuser)
-                    jailed_UID = self.Irc.get_uid(fromuser)
+                    jailed_nickname = self.User.get_nickname(fromuser)
+                    jailed_UID = self.User.get_uid(fromuser)
                     if not jailed_UID in self.db_reputation:
                         self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} : No code is requested ...")
                         return False
@@ -1160,6 +1160,7 @@ class Defender():
                             self.Irc.send2socket(f":{service_id} SAPART {jailed_nickname} {jailed_salon}")
                             self.Irc.send2socket(f":{service_id} SAJOIN {jailed_nickname} {welcome_salon}")
                             self.Irc.send2socket(f":{link} REPUTATION {jailed_IP} {int(reputation_seuil) + 1}")
+                            self.User.get_User(jailed_UID).score_connexion = reputation_seuil + 1
                             self.Irc.send2socket(f":{service_id} PRIVMSG {jailed_nickname} :[{color_green} MOT DE PASS CORRECT {color_black}] : You have now the right to enjoy the network !")
 
                         else:
@@ -1640,31 +1641,24 @@ class Defender():
             case 'info':
                 try:
                     nickoruid = cmd[1]
-                    uid_query = None
-                    nickname_query = None
+                    UserObject = self.User.get_User(nickoruid)
 
-                    if not self.Irc.get_nickname(nickoruid) is None:
-                        nickname_query = self.Irc.get_nickname(nickoruid)
-
-                    if not self.Irc.get_uid(nickoruid) is None:
-                        uid_query = self.Irc.get_uid(nickoruid)
-
-                    if nickname_query is None and uid_query is None:
-                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} : This user {nickoruid} doesn't exist")
+                    if not UserObject is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : UID              : {UserObject.uid}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : NICKNAME         : {UserObject.nickname}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : USERNAME         : {UserObject.username}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : HOSTNAME         : {UserObject.hostname}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : IP               : {UserObject.remote_ip}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : REPUTATION       : {UserObject.score_connexion}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : VHOST            : {UserObject.vhost}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : MODES            : {UserObject.umodes}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : CONNECTION TIME  : {UserObject.connexion_datetime}')
                     else:
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : UID              : {uid_query}')
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : NICKNAME         : {self.Irc.db_uid[uid_query]["nickname"]}')
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : USERNAME         : {self.Irc.db_uid[uid_query]["username"]}')
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : HOSTNAME         : {self.Irc.db_uid[uid_query]["hostname"]}')
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : VHOST            : {self.Irc.db_uid[uid_query]["vhost"]}')
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : MODES            : {self.Irc.db_uid[uid_query]["umodes"]}')
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : CONNECTION TIME  : {self.Irc.db_uid[uid_query]["datetime"]}')
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} : This user {nickoruid} doesn't exist")
+
                 except KeyError as ke:
                     self.Base.logs.warning(f"Key error info user : {ke}")
 
             case 'show_users':
-                for uid, infousers in self.Irc.db_uid.items():
-                    # print(uid + " " + str(infousers))
-                    for info in infousers:
-                        if info == 'nickname':
-                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :UID : {uid} - isWebirc: {infousers['isWebirc']} - {info}: {infousers[info]}")
+                for db_user in self.User.UID_DB:
+                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :UID : {db_user.uid} - isWebirc: {db_user.isWebirc} - Nickname: {db_user.nickname}")

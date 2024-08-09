@@ -1,0 +1,5 @@
+.pyenv/
+db/
+logs/
+__pycache__/
+configuration.json
