@@ -76,7 +76,7 @@ class Config:
             configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
 
         for key, value in configuration['CONFIG_COLOR'].items():
-            configuration['CONFIG_COLOR'][key] = value.encode('utf-8').decode('unicode_escape')
+            configuration['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
         
         return configuration
     

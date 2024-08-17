@@ -3,3 +3,4 @@ db/
 logs/
 __pycache__/
 configuration.json
+test.py

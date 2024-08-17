@@ -1,4 +1,4 @@
-import time, threading, os, random, socket, hashlib, ipaddress, logging, requests, json, sys
+import time, threading, os, random, socket, hashlib, ipaddress, logging, requests, json, re
 from typing import Union
 from base64 import b64decode
 from datetime import datetime
@@ -507,3 +507,10 @@ class Base:
 
         # Vider le dictionnaire de fonction
         self.periodic_func.clear()
+
+    def clean_uid(self, uid:str) -> str:
+
+        pattern = fr'[@|%|\+|~|\*]*'
+        parsed_UID = re.sub(pattern, '', uid)
+
+        return parsed_UID

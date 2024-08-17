@@ -3,7 +3,7 @@ from ssl import SSLSocket
 from datetime import datetime, timedelta
 from typing import Union
 from core.loadConf import Config
-from core.Model import User, Admin
+from core.Model import User, Admin, Channel
 from core.base import Base
 
 class Irc:
@@ -12,8 +12,6 @@ class Irc:
 
         self.defender_connexion_datetime = datetime.now()   # Date et heure de la premiere connexion de Defender
         self.first_score: int = 100
-        #self.db_uid = {}                                    # Definir la variable qui contiendra la liste des utilisateurs connectés au réseau
-        #self.db_admin = {}                                  # Definir la variable qui contiendra la liste des administrateurs
         self.db_chan = []                                   # Definir la variable qui contiendra la liste des salons
         self.loaded_classes:dict[str, 'Irc'] = {}           # Definir la variable qui contiendra la liste modules chargés
         self.beat = 30                                      # Lancer toutes les 30 secondes des actions de nettoyages
@@ -32,7 +30,7 @@ class Irc:
         self.commands_level = {
             0: ['help', 'auth', 'copyright'],
             1: ['load','reload','unload', 'deauth', 'uptime', 'checkversion'],
-            2: ['show_modules', 'show_timers', 'show_threads', 'sentinel'],
+            2: ['show_modules', 'show_timers', 'show_threads', 'show_channels'],
             3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
         }
 
@@ -45,12 +43,18 @@ class Irc:
         self.Base = Base(self.Config)
         self.User = User(self.Base)
         self.Admin = Admin(self.Base)
+        self.Channel = Channel(self.Base)
         self.Base.create_thread(func=self.heartbeat, func_args=(self.beat, ))
 
     ##############################################
     #               CONNEXION IRC                #
     ##############################################
     def init_irc(self, ircInstance:'Irc') -> None:
+        """Create a socket and connect to irc server
+
+        Args:
+            ircInstance (Irc): Instance of Irc object.
+        """
         try:
             self.__create_socket()
             self.__connect_to_irc(ircInstance)
@@ -58,7 +62,8 @@ class Irc:
             self.Base.logs.critical(f'Assertion error: {ae}')
 
     def __create_socket(self) -> None:
-
+        """Create a socket to connect SSL or Normal connection
+        """
         try:
             soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM or socket.SOCK_NONBLOCK)
             connexion_information = (self.Config.SERVEUR_IP, self.Config.SERVEUR_PORT)
@@ -69,9 +74,8 @@ class Irc:
                 ssl_connexion = ssl_context.wrap_socket(soc, server_hostname=self.Config.SERVEUR_HOSTNAME)
                 ssl_connexion.connect(connexion_information)
                 self.IrcSocket:SSLSocket = ssl_connexion
-
-                self.Base.logs.info(f"Connexion en mode SSL : Version = {self.IrcSocket.version()}")
                 self.SSL_VERSION = self.IrcSocket.version()
+                self.Base.logs.info(f"Connexion en mode SSL : Version = {self.SSL_VERSION}")
             else:
                 soc.connect(connexion_information)
                 self.IrcSocket:socket.socket = soc
@@ -166,7 +170,7 @@ class Irc:
         # except Exception as e:
         #     self.debug(f"Exception: {e}")
 
-    def __link(self, writer:socket.socket) -> None:
+    def __link(self, writer:Union[socket.socket, SSLSocket]) -> None:
         """Créer le link et envoyer les informations nécessaires pour la 
         connexion au serveur.
 
@@ -255,6 +259,10 @@ class Irc:
                 self.cmd(response)
         except AssertionError as ae:
             self.Base.logs.error(f"Assertion error : {ae}")
+
+    def unload(self) -> None:
+        # This is only to reference the method
+        return None
 
     ##############################################
     #             FIN CONNEXION IRC              #
@@ -387,7 +395,15 @@ class Irc:
 
             my_class = getattr(loaded_module, class_name, None)                 # Récuperer le nom de classe
             create_instance_of_the_class = my_class(self.ircObject)             # Créer une nouvelle instance de la classe
-            self.loaded_classes[class_name] = create_instance_of_the_class      # Charger la nouvelle class dans la variable globale
+
+            if not hasattr(create_instance_of_the_class, 'cmd'):
+                self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} ne contient pas de méthode cmd")
+                self.Base.logs.critical(f"The Module {module_name} has not been loaded because cmd method is not available")
+                self.Base.db_delete_module(module_name)
+                return False
+
+            # Charger la nouvelle class dans la variable globale
+            self.loaded_classes[class_name] = create_instance_of_the_class
 
             # Enregistrer le module dans la base de données
             if not init:
@@ -442,32 +458,15 @@ class Irc:
 
         return None
 
-    def insert_db_chan(self, channel:str) -> bool:
-        """Ajouter l'ensemble des salons dans la variable {CHAN_DB}
-
-        Args:
-            channel (str): le salon à insérer dans {CHAN_DB}
-
-        Returns:
-            bool: True si insertion OK / False si insertion KO
-        """
-        if channel in self.db_chan:
-            return False
-
-        response = True
-        # Ajouter un nouveau salon
-        self.db_chan.append(channel)
-
-        # Supprimer les doublons de la liste
-        self.db_chan = list(set(self.db_chan))
-
-        self.Base.logs.debug(f"Le salon {channel} a été ajouté à la liste CHAN_DB")
-
-        return response
-
     def create_defender_user(self, nickname:str, level: int, password:str) -> str:
 
-        nickname = self.User.get_nickname(nickname)
+        get_user = self.User.get_User(nickname)
+        if get_user is None:
+            response = f'This nickname {nickname} does not exist, it is not possible to create this user'
+            self.Base.logs.warning(response)
+            return response
+
+        nickname = get_user.nickname
         response = ''
 
         if level > 4:
@@ -475,14 +474,8 @@ class Irc:
             self.Base.logs.warning(response)
             return response
 
-        # Verification si le user existe dans notre UID_DB
-        if not nickname in self.db_uid:
-            response = f"{nickname} n'est pas connecté, impossible de l'enregistrer pour le moment"
-            self.Base.logs.warning(response)
-            return response
-
-        hostname = self.db_uid[nickname]['hostname']
-        vhost = self.db_uid[nickname]['vhost']
+        hostname = get_user.hostname
+        vhost = get_user.vhost
         spassword = self.Base.crypt_password(password)
 
         mes_donnees = {'admin': nickname}
@@ -626,11 +619,14 @@ class Irc:
                         # if self.Config.ABUSEIPDB == 1:
                         #     self.Base.create_thread(self.abuseipdb_scan, (cmd[2], ))
                         self.first_connexion_ip = cmd[2]
-                        self.first_score = cmd[3]
+                        self.first_score = int(cmd[3])
                         pass
                         # Possibilité de déclancher les bans a ce niveau.
                     except IndexError as ie:
                         self.Base.logs.error(f'{ie}')
+                    except ValueError as ve:
+                        self.first_score = 0
+                        self.Base.logs.error(f'Impossible to convert first_score: {ve}')
 
                 case '320':
                     #:irc.deb.biz.st 320 PyDefender IRCParis07 :is in security-groups: known-users,webirc-users,tls-and-known-users,tls-users
@@ -651,8 +647,7 @@ class Irc:
                         if self.INIT == 1:
                             current_version = self.Config.current_version
                             latest_version = self.Config.latest_version
-
-                            if current_version != latest_version:
+                            if self.Base.check_for_new_version(False):
                                 version = f'{current_version} >>> {latest_version}'
                             else:
                                 version = f'{current_version}'
@@ -715,11 +710,56 @@ class Irc:
                     newnickname = cmd[2]
                     self.User.update(uid, newnickname)
 
+                case 'MODE':
+                    #['@msgid=d0ySx56Yd0nc35oHts2SkC-/J9mVUA1hfM6+Z4494xWUg;time=2024-08-09T12:45:36.651Z', 
+                    # ':001', 'MODE', '#a', '+nt', '1723207536']
+                    cmd.pop(0)
+                    if '#' in cmd[2]:
+                        channel = cmd[2]
+                        mode = cmd[3]
+                        self.Channel.update(channel, mode)
+
                 case 'SJOIN':
-                    # ['@msgid=ictnEBhHmTUHzkEeVZl6rR;time=2023-12-28T20:03:18.482Z', ':001', 'SJOIN', '1702139101', '#stats', '+nst', ':@001SB890A', '@00BAAAAAI']
+                    # ['@msgid=5sTwGdj349D82L96p749SY;time=2024-08-15T09:50:23.528Z', ':001', 'SJOIN', '1721564574', '#welcome', ':001JD94QH']
+                    # ['@msgid=bvceb6HthbLJapgGLXn1b0;time=2024-08-15T09:50:11.464Z', ':001', 'SJOIN', '1721564574', '#welcome', '+lnrt', '13', ':001CIVLQF', '+11ZAAAAAB', '001QGR10C', '*@0014UE10B', '001NL1O07', '001SWZR05', '001HB8G04', '@00BAAAAAJ', '0019M7101']
                     cmd.pop(0)
                     channel = cmd[3]
-                    self.insert_db_chan(channel)
+                    mode = cmd[4]
+                    len_cmd = len(cmd)
+                    list_users:list = []
+                    
+                    start_boucle = 0
+                    
+                    # Trouver le premier user
+                    for i in range(len_cmd):
+                        s: list = re.findall(fr':', cmd[i])
+                        if s:
+                            start_boucle = i
+
+                    # Boucle qui va ajouter l'ensemble des users (UID)
+                    for i in range(start_boucle, len(cmd)):
+                        parsed_UID = str(cmd[i])
+                        pattern = fr'[:|@|%|\+|~|\*]*'
+                        pattern = fr':'
+                        parsed_UID = re.sub(pattern, '', parsed_UID)
+                        list_users.append(parsed_UID)
+
+                    self.Channel.insert(
+                        self.Channel.ChannelModel(
+                            name=channel,
+                            mode=mode,
+                            uids=list_users
+                        )
+                    )
+
+                case 'PART':
+                    # ['@unrealircd.org/geoip=FR;unrealircd.org/userhost=50d6492c@80.214.73.44;unrealircd.org/userip=50d6492c@80.214.73.44;msgid=YSIPB9q4PcRu0EVfC9ci7y-/mZT0+Gj5FLiDSZshH5NCw;time=2024-08-15T15:35:53.772Z', 
+                    # ':001EPFBRD', 'PART', '#welcome', ':WEB', 'IRC', 'Paris']
+                    uid = str(cmd[1]).replace(':','')
+                    channel = str(cmd[3])
+                    self.Channel.delete_user_from_channel(channel, uid)
+
+                    pass
 
                 case 'UID':
                     # ['@s2s-md/geoip=cc=GB|cd=United\\sKingdom|asn=16276|asname=OVH\\sSAS;s2s-md/tls_cipher=TLSv1.3-TLS_CHACHA20_POLY1305_SHA256;s2s-md/creationtime=1721564601', 
@@ -741,7 +781,7 @@ class Irc:
                     else:
                         remote_ip = '127.0.0.1'
 
-                    score_connexion = str(self.first_score)
+                    score_connexion = self.first_score
 
                     self.User.insert(
                         self.User.UserModel(
@@ -796,7 +836,7 @@ class Irc:
                             cmd_to_send = convert_to_string.replace(':','')
                             self.Base.log_cmd(user_trigger, cmd_to_send)
 
-                            self._hcmds(user_trigger, arg)
+                            self._hcmds(user_trigger, arg, cmd)
 
                         if cmd[2] == self.Config.SERVICE_ID:
                             pattern = fr'^:.*?:(.*)$'
@@ -834,7 +874,7 @@ class Irc:
                                 cmd_to_send = convert_to_string.replace(':','')
                                 self.Base.log_cmd(self.User.get_nickname(user_trigger), cmd_to_send)
 
-                                self._hcmds(user_trigger, arg)
+                                self._hcmds(user_trigger, arg, cmd)
 
                     except IndexError as io:
                         self.Base.logs.error(f'{io}')
@@ -850,7 +890,7 @@ class Irc:
         except IndexError as ie:
             self.Base.logs.error(f"{ie} / {cmd} / length {str(len(cmd))}")
 
-    def _hcmds(self, user: str, cmd:list) -> None:
+    def _hcmds(self, user: str, cmd:list, fullcmd: list = []) -> None:
 
         fromuser = self.User.get_nickname(user)                                        # Nickname qui a lancé la commande
         uid = self.User.get_uid(fromuser)                                              # Récuperer le uid de l'utilisateur
@@ -871,7 +911,7 @@ class Irc:
         # Envoyer la commande aux classes dynamiquement chargées
         if command != 'notallowed':
             for classe_name, classe_object in self.loaded_classes.items():
-                classe_object._hcmds(user, cmd)
+                classe_object._hcmds(user, cmd, fullcmd)
 
         match command:
 
@@ -1100,7 +1140,7 @@ class Irc:
 
                     if 'mods.' + module_name in sys.modules:
                         self.loaded_classes[class_name].unload()
-                        self.Base.logs.info('Module Already Loaded ... reload the module ...')
+                        self.Base.logs.info('Module Already Loaded ... reloading the module ...')
                         the_module = sys.modules['mods.' + module_name]
                         importlib.reload(the_module)
                         
@@ -1154,8 +1194,11 @@ class Irc:
                     reason.append(cmd[i])
                 final_reason = ' '.join(reason)
 
-                self.db_uid.clear()                     #Vider UID_DB
-                self.db_chan = []                       #Vider les salons
+                # self.db_uid.clear()                     #Vider UID_DB
+                # self.db_chan = []                       #Vider les salons
+
+                self.User.UID_DB.clear()                # Clear User Object
+                self.Channel.UID_CHANNEL_DB.clear()     # Clear Channel Object
 
                 for class_name in self.loaded_classes:
                     self.loaded_classes[class_name].unload()
@@ -1196,28 +1239,23 @@ class Irc:
 
                 self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :{str(running_thread_name)}")
 
+            case 'show_channels':
+
+                for chan in self.Channel.UID_CHANNEL_DB:
+                    list_nicknames: list = []
+                    for uid in chan.uids:
+                        pattern = fr'[:|@|%|\+|~|\*]*'
+                        parsed_UID = re.sub(pattern, '', uid)
+                        list_nicknames.append(self.User.get_nickname(parsed_UID))
+
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} : Channel: {chan.name} - Users: {list_nicknames}")
+
             case 'uptime':
                 uptime = self.get_defender_uptime()
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : {uptime}')
 
             case 'copyright':
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Config.current_version} Developped by adator® and dktmb® #')
-
-            case 'sentinel':
-                # .sentinel on
-                activation = str(cmd[1]).lower()
-                service_id = self.Config.SERVICE_ID
-
-                channel_to_dont_quit = [self.Config.SALON_JAIL, dchanlog]
-
-                if activation == 'on':
-                    for chan in self.db_chan:
-                        if not chan in channel_to_dont_quit:
-                            self.send2socket(f":{service_id} JOIN {chan}")
-                if activation == 'off':
-                    for chan in self.db_chan:
-                        if not chan in channel_to_dont_quit:
-                            self.send2socket(f":{service_id} PART {chan}")
 
             case 'checkversion':
 
