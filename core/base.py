@@ -509,8 +509,34 @@ class Base:
         self.periodic_func.clear()
 
     def clean_uid(self, uid:str) -> str:
+        """Clean UID by removing @ / % / + / Owner / and *
+
+        Args:
+            uid (str): The UID to clean
+
+        Returns:
+            str: Clean UID without any sign
+        """
 
         pattern = fr'[@|%|\+|~|\*]*'
         parsed_UID = re.sub(pattern, '', uid)
 
         return parsed_UID
+    
+    def Is_Channel(self, channelToCheck: str) -> bool:
+        """Check if the string has the # caractere and return True if this is a channel
+
+        Args:
+            channelToCheck (str): The string to test if it is a channel or not
+
+        Returns:
+            bool: True if the string is a channel / False if this is not a channel
+        """
+
+        pattern = fr'^#'
+        isChannel = re.findall(pattern, channelToCheck)
+
+        if not isChannel:
+            return False
+        else:
+            return True
