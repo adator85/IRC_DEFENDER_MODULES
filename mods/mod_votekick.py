@@ -45,7 +45,7 @@ class Votekick():
         # Créer les nouvelles commandes du module
         self.commands_level = {
             0: ['vote_for', 'vote_against'],
-            1: ['activate', 'deactivate', 'submit', 'vote_stat', 'vote_verdict']
+            1: ['activate', 'deactivate', 'submit', 'vote_stat', 'vote_verdict', 'vote_cancel']
         }
 
         # Init the module
@@ -227,9 +227,43 @@ class Votekick():
 
         command = str(cmd[0]).lower()
         dnickname = self.Config.SERVICE_NICKNAME
+        if len(fullcmd) >= 3:
+            fromchannel = str(fullcmd[2]).lower() if self.Base.Is_Channel(str(fullcmd[2]).lower()) else None
+        else:
+            fromchannel = None
+        
+        if len(cmd) >= 2:
+            sentchannel = str(cmd[1]).lower() if self.Base.Is_Channel(str(cmd[1]).lower()) else None
+        else:
+            sentchannel = None
+        
+        if not fromchannel is None:
+            channel = fromchannel
+        elif not sentchannel is None:
+            channel = sentchannel
+        else:
+            channel = None
+
+
         fromuser = user
 
         match command:
+
+            case 'vote_cancel':
+                try:
+                    if fromchannel is None:
+                        channel = str(cmd[1]).lower()
+                    else:
+                        channel = fromchannel
+                    
+                    for vote in self.VOTE_CHANNEL_DB:
+                        if vote.channel_name == channel:
+                            self.init_vote_system(channel)
+                            self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Vote system re-initiated')
+
+                except IndexError as ke:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote_cancel #channel')
+                    self.Logs.error(f'Index Error: {ke}')
 
             case 'vote_for':
                 try:
