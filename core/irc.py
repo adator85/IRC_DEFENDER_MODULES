@@ -723,7 +723,7 @@ class Irc:
                     # ['@msgid=5sTwGdj349D82L96p749SY;time=2024-08-15T09:50:23.528Z', ':001', 'SJOIN', '1721564574', '#welcome', ':001JD94QH']
                     # ['@msgid=bvceb6HthbLJapgGLXn1b0;time=2024-08-15T09:50:11.464Z', ':001', 'SJOIN', '1721564574', '#welcome', '+lnrt', '13', ':001CIVLQF', '+11ZAAAAAB', '001QGR10C', '*@0014UE10B', '001NL1O07', '001SWZR05', '001HB8G04', '@00BAAAAAJ', '0019M7101']
                     cmd.pop(0)
-                    channel = cmd[3]
+                    channel = str(cmd[3]).lower()
                     mode = cmd[4]
                     len_cmd = len(cmd)
                     list_users:list = []
