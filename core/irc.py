@@ -1208,16 +1208,31 @@ class Irc:
             case 'show_modules':
 
                 self.Base.logs.debug(self.loaded_classes)
+                all_modules  = self.Base.get_all_modules()
 
                 results = self.Base.db_execute_query(f'SELECT module FROM {self.Config.table_module}')
                 results = results.fetchall()
 
-                if len(results) == 0:
-                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :Aucun module chargé")
-                    return False
+                # if len(results) == 0:
+                #     self.send2socket(f":{dnickname} NOTICE {fromuser} :There is no module loaded")
+                #     return False
 
-                for r in results:
-                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :Le module {r[0]} chargé")
+                found = False
+
+                for module in all_modules:
+                    for loaded_mod in results:
+                        if module == loaded_mod[0]:
+                            found = True
+
+                    if found:
+                        self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.CONFIG_COLOR['verte']}Loaded{self.Config.CONFIG_COLOR['nogc']}")
+                    else:
+                        self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.CONFIG_COLOR['rouge']}Not Loaded{self.Config.CONFIG_COLOR['nogc']}")
+
+                    found = False
+
+                # for r in results:
+                #     self.send2socket(f":{dnickname} NOTICE {fromuser} :{r[0]} - {self.Config.CONFIG_COLOR['verte']}Loaded{self.Config.CONFIG_COLOR['nogc']}")
 
             case 'show_timers':
 

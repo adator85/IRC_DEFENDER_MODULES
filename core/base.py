@@ -56,9 +56,9 @@ class Base:
             }
 
             if token == '':
-                response = requests.get(json_url)
+                response = requests.get(json_url, timeout=self.Config.API_TIMEOUT)
             else:
-                response = requests.get(json_url, headers=headers)
+                response = requests.get(json_url, headers=headers, timeout=self.Config.API_TIMEOUT)
 
             response.raise_for_status()  # Vérifie si la requête a réussi
             json_response:dict = response.json()
@@ -119,6 +119,16 @@ class Base:
         """
         currentdate = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
         return currentdate
+
+    def get_all_modules(self) -> list:
+
+        all_files = os.listdir('mods/')
+        all_modules: list = []
+        for module in all_files:
+            if module.endswith('.py') and not module == '__init__.py':
+                all_modules.append(module.replace('.py', '').lower())
+
+        return all_modules
 
     def create_log(self, log_message: str) -> None:
         """Enregiste les logs
@@ -522,7 +532,7 @@ class Base:
         parsed_UID = re.sub(pattern, '', uid)
 
         return parsed_UID
-    
+
     def Is_Channel(self, channelToCheck: str) -> bool:
         """Check if the string has the # caractere and return True if this is a channel
 

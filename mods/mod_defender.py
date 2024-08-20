@@ -80,7 +80,7 @@ class Defender():
         self.commands_level = {
             0: ['code'],
             1: ['join','part', 'info'],
-            2: ['q', 'dq', 'o', 'do', 'h', 'dh', 'v', 'dv', 'b', 'ub','k', 'kb'],
+            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'ban', 'unban','kick', 'kickban'],
             3: ['reputation','proxy_scan', 'flood', 'status', 'timer','show_reputation', 'show_users', 'sentinel']
         }
         self.__set_commands(self.commands_level)                            # Enrigstrer les nouvelles commandes dans le code
@@ -1224,6 +1224,23 @@ class Defender():
         jail_chan = self.Config.SALON_JAIL                  # Salon pot de miel
         jail_chan_mode = self.Config.SALON_JAIL_MODES       # Mode du salon "pot de miel"
 
+        if len(fullcmd) >= 3:
+            fromchannel = str(fullcmd[2]).lower() if self.Base.Is_Channel(str(fullcmd[2]).lower()) else None
+        else:
+            fromchannel = None
+
+        if len(cmd) >= 2:
+            sentchannel = str(cmd[1]).lower() if self.Base.Is_Channel(str(cmd[1]).lower()) else None
+        else:
+            sentchannel = None
+
+        if not fromchannel is None:
+            channel = fromchannel
+        elif not sentchannel is None:
+            channel = sentchannel
+        else:
+            channel = None
+
         match command:
 
             case 'timer':
@@ -1606,97 +1623,209 @@ class Defender():
                 except IndexError as ie:
                     self.Logs.error(f'{ie}')
 
-            case 'op' | 'o':
+            case 'op':
                 # /mode #channel +o user
                 # .op #channel user
+                # /msg dnickname op #channel user
                 # [':adator', 'PRIVMSG', '#services', ':.o', '#services', 'dktmb']
                 try:
-                    print(cmd)
-                    channel = cmd[1]
+                    if channel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} op [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {channel} +o {fromuser}")
+                        return True
+
+                    # deop nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {channel} +o {nickname}")
+                        return True
+
                     nickname = cmd[2]
                     self.Irc.send2socket(f":{service_id} MODE {channel} +o {nickname}")
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd OP: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} op [#SALON] [NICKNAME]')
 
-            case 'deop' | 'do':
+            case 'deop':
                 # /mode #channel -o user
                 # .deop #channel user
                 try:
-                    channel = cmd[1]
+                    if channel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} deop [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {channel} -o {fromuser}")
+                        return True
+
+                    # deop nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {channel} -o {nickname}")
+                        return True
+
                     nickname = cmd[2]
                     self.Irc.send2socket(f":{service_id} MODE {channel} -o {nickname}")
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd DEOP: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} deop [#SALON] [NICKNAME]')
 
-            case 'owner' | 'q':
+            case 'owner':
                 # /mode #channel +q user
                 # .owner #channel user
                 try:
-                    channel = cmd[1]
+                    if channel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} owner [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {channel} +q {fromuser}")
+                        return True
+
+                    # owner nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {channel} +q {nickname}")
+                        return True
+
                     nickname = cmd[2]
                     self.Irc.send2socket(f":{service_id} MODE {channel} +q {nickname}")
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd OWNER: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} owner [#SALON] [NICKNAME]')
 
-            case 'deowner' | 'dq':
+            case 'deowner':
                 # /mode #channel -q user
                 # .deowner #channel user
                 try:
+                    if channel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} deowner [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {channel} -q {fromuser}")
+                        return True
+
+                    # deowner nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {channel} -q {nickname}")
+                        return True
                     channel = cmd[1]
                     nickname = cmd[2]
                     self.Irc.send2socket(f":{service_id} MODE {channel} -q {nickname}")
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd DEOWNER: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} deowner [#SALON] [NICKNAME]')
 
-            case 'halfop' | 'h':
+            case 'halfop':
                 # /mode #channel +h user
                 # .halfop #channel user
                 try:
-                    channel = cmd[1]
+                    if channel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} halfop [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {channel} +h {fromuser}")
+                        return True
+
+                    # deop nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {channel} +h {nickname}")
+                        return True
+
                     nickname = cmd[2]
                     self.Irc.send2socket(f":{service_id} MODE {channel} +h {nickname}")
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd halfop: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} halfop [#SALON] [NICKNAME]')
 
-            case 'dehalfop' | 'dh':
+            case 'dehalfop':
                 # /mode #channel -h user
                 # .dehalfop #channel user
                 try:
-                    channel = cmd[1]
+                    if channel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} dehalfop [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {channel} -h {fromuser}")
+                        return True
+
+                    # dehalfop nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {channel} -h {nickname}")
+                        return True
+
                     nickname = cmd[2]
                     self.Irc.send2socket(f":{service_id} MODE {channel} -h {nickname}")
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd DEHALFOP: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} dehalfop [#SALON] [NICKNAME]')
 
-            case 'voice' | 'v':
+            case 'voice':
                 # /mode #channel +v user
                 # .voice #channel user
                 try:
-                    channel = cmd[1]
+                    if channel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} voice [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {channel} +v {fromuser}")
+                        return True
+
+                    # voice nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {channel} +v {nickname}")
+                        return True
+
                     nickname = cmd[2]
                     self.Irc.send2socket(f":{service_id} MODE {channel} +v {nickname}")
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd VOICE: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} voice [#SALON] [NICKNAME]')
 
-            case 'devoice' | 'dv':
+            case 'devoice':
                 # /mode #channel -v user
                 # .devoice #channel user
                 try:
-                    channel = cmd[1]
+                    if channel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} devoice [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {channel} -v {fromuser}")
+                        return True
+
+                    # dehalfop nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {channel} -v {nickname}")
+                        return True
+
                     nickname = cmd[2]
                     self.Irc.send2socket(f":{service_id} MODE {channel} -v {nickname}")
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd DEVOICE: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} devoice [#SALON] [NICKNAME]')
 
-            case 'ban' | 'b':
+            case 'ban':
                 # .ban #channel nickname
                 try:
                     channel = cmd[1]
@@ -1708,7 +1837,7 @@ class Defender():
                     self.Logs.warning(f'_hcmd BAN: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} ban [#SALON] [NICKNAME]')
 
-            case 'unban' | 'ub':
+            case 'unban':
                 # .unban #channel nickname
                 try:
                     channel = cmd[1]
@@ -1720,7 +1849,7 @@ class Defender():
                     self.Logs.warning(f'_hcmd UNBAN: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} unban [#SALON] [NICKNAME]')
 
-            case 'kick' | 'k':
+            case 'kick':
                 # .kick #channel nickname reason
                 try:
                     channel = cmd[1]
@@ -1738,7 +1867,7 @@ class Defender():
                     self.Logs.warning(f'_hcmd KICK: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} kick [#SALON] [NICKNAME] [REASON]')
 
-            case 'kickban' | 'kb':
+            case 'kickban':
                 # .kickban #channel nickname reason
                 try:
                     channel = cmd[1]
