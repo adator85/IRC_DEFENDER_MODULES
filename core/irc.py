@@ -747,7 +747,6 @@ class Irc:
                     self.Channel.insert(
                         self.Channel.ChannelModel(
                             name=channel,
-                            mode=mode,
                             uids=list_users
                         )
                     )
@@ -756,7 +755,7 @@ class Irc:
                     # ['@unrealircd.org/geoip=FR;unrealircd.org/userhost=50d6492c@80.214.73.44;unrealircd.org/userip=50d6492c@80.214.73.44;msgid=YSIPB9q4PcRu0EVfC9ci7y-/mZT0+Gj5FLiDSZshH5NCw;time=2024-08-15T15:35:53.772Z', 
                     # ':001EPFBRD', 'PART', '#welcome', ':WEB', 'IRC', 'Paris']
                     uid = str(cmd[1]).replace(':','')
-                    channel = str(cmd[3])
+                    channel = str(cmd[3]).lower()
                     self.Channel.delete_user_from_channel(channel, uid)
 
                     pass
