@@ -157,7 +157,7 @@ class Votekick():
         mes_donnees = {'channel': channel}
 
         response = self.Base.db_execute_query("SELECT id FROM votekick_channel WHERE channel = :channel", mes_donnees)
-        
+
         isChannelExist = response.fetchone()
 
         if isChannelExist is None:
@@ -198,7 +198,7 @@ class Votekick():
             self.Irc.send2socket(f":{self.Config.SERVEUR_ID} SJOIN {unixtime} {chan} + :{self.Config.SERVICE_ID}")
             self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} SAMODE {chan} +o {self.Config.SERVICE_NICKNAME}")
 
-        return None    
+        return None
 
     def is_vote_ongoing(self, channel: str) -> bool:
 
@@ -207,7 +207,7 @@ class Votekick():
             if vote.channel_name == channel:
                 if vote.target_user:
                     response = True
-        
+
         return response
 
     def timer_vote_verdict(self, channel: str) -> None:
@@ -220,6 +220,7 @@ class Votekick():
                 if chan.vote_for > chan.vote_against:
                     self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :The user {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]}  will be kicked from this channel')
                     self.Irc.send2socket(f":{dnickname} KICK {channel} {target_user} Following the vote, you are not welcome in {channel}")
+                    self.Channel.delete_user_from_channel(channel, self.User.get_uid(target_user))
                 elif chan.vote_for <= chan.vote_against:
                     self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This user will stay on this channel')
 
