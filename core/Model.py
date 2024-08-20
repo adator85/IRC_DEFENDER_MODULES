@@ -263,7 +263,6 @@ class Channel:
     @dataclass
     class ChannelModel:
         name: str
-        mode: str
         uids: list
 
     UID_CHANNEL_DB: list[ChannelModel] = []
@@ -299,21 +298,6 @@ class Channel:
 
         if not result:
             self.log.critical(f'The Channel Object was not inserted {newChan}')
-
-        return result
-
-    def update(self, name: str, newMode: str) -> bool:
-
-        result = False
-
-        for record in self.UID_CHANNEL_DB:
-            if record.name == name:
-                record.mode = newMode
-                result = True
-                self.log.debug(f'Mode ({record.name}) has been updated with new mode {newMode}')
-
-        if not result:
-            self.log.critical(f'The channel mode {newMode} was not updated, name = {name}')
 
         return result
 

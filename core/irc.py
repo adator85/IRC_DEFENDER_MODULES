@@ -713,11 +713,7 @@ class Irc:
                 case 'MODE':
                     #['@msgid=d0ySx56Yd0nc35oHts2SkC-/J9mVUA1hfM6+Z4494xWUg;time=2024-08-09T12:45:36.651Z', 
                     # ':001', 'MODE', '#a', '+nt', '1723207536']
-                    cmd.pop(0)
-                    if '#' in cmd[2]:
-                        channel = cmd[2]
-                        mode = cmd[3]
-                        self.Channel.update(channel, mode)
+                    pass
 
                 case 'SJOIN':
                     # ['@msgid=5sTwGdj349D82L96p749SY;time=2024-08-15T09:50:23.528Z', ':001', 'SJOIN', '1721564574', '#welcome', ':001JD94QH']
