@@ -38,8 +38,10 @@ class User:
 
         for record in self.UID_DB:
             if record.uid == newUser.uid:
+                # If the user exist then return False and do not go further
                 exist = True
                 self.log.debug(f'{record.uid} already exist')
+                return result
 
         if not exist:
             self.UID_DB.append(newUser)
@@ -65,9 +67,11 @@ class User:
 
         for record in self.UID_DB:
             if record.uid == uid:
+                # If the user exist then update and return True and do not go further
                 record.nickname = newNickname
                 result = True
                 self.log.debug(f'UID ({record.uid}) has been updated with new nickname {newNickname}')
+                return result
 
         if not result:
             self.log.critical(f'The new nickname {newNickname} was not updated, uid = {uid}')
@@ -87,9 +91,11 @@ class User:
 
         for record in self.UID_DB:
             if record.uid == uid:
+                # If the user exist then remove and return True and do not go further
                 self.UID_DB.remove(record)
                 result = True
                 self.log.debug(f'UID ({record.uid}) has been deleted')
+                return result
 
         if not result:
             self.log.critical(f'The UID {uid} was not deleted')
@@ -179,8 +185,10 @@ class Admin:
 
         for record in self.UID_ADMIN_DB:
             if record.uid == newAdmin.uid:
+                # If the admin exist then return False and do not go further
                 exist = True
                 self.log.debug(f'{record.uid} already exist')
+                return result
 
         if not exist:
             self.UID_ADMIN_DB.append(newAdmin)
@@ -191,37 +199,41 @@ class Admin:
             self.log.critical(f'The User Object was not inserted {newAdmin}')
 
         return result
-    
+
     def update(self, uid: str, newNickname: str) -> bool:
 
         result = False
 
         for record in self.UID_ADMIN_DB:
             if record.uid == uid:
+                # If the admin exist, update and do not go further
                 record.nickname = newNickname
                 result = True
                 self.log.debug(f'UID ({record.uid}) has been updated with new nickname {newNickname}')
+                return result
 
         if not result:
             self.log.critical(f'The new nickname {newNickname} was not updated, uid = {uid}')
 
         return result
-    
+
     def delete(self, uid: str) -> bool:
 
         result = False
 
         for record in self.UID_ADMIN_DB:
             if record.uid == uid:
+                # If the admin exist, delete and do not go further
                 self.UID_ADMIN_DB.remove(record)
                 result = True
                 self.log.debug(f'UID ({record.uid}) has been created')
+                return result
 
         if not result:
             self.log.critical(f'The UID {uid} was not deleted')
 
         return result
-    
+
     def get_Admin(self, uidornickname: str) -> Union[AdminModel, None]:
 
         Admin = None
@@ -273,15 +285,23 @@ class Channel:
         pass
 
     def insert(self, newChan: ChannelModel) -> bool:
+        """This method will insert a new channel and if the channel exist it will update the user list (uids)
 
+        Args:
+            newChan (ChannelModel): The channel model object
+
+        Returns:
+            bool: True if new channel, False if channel exist (However UID could be updated)
+        """
         result = False
         exist = False
 
         for record in self.UID_CHANNEL_DB:
             if record.name == newChan.name:
+                # If the channel exist, update the user list and do not go further
                 exist = True
                 self.log.debug(f'{record.name} already exist')
-                
+
                 for user in newChan.uids:
                     record.uids.append(user)
 
@@ -289,9 +309,11 @@ class Channel:
                 del_duplicates = list(set(record.uids))
                 record.uids = del_duplicates
                 self.log.debug(f'Updating a new UID to the channel {record}')
+                return result
 
 
         if not exist:
+            # If the channel don't exist, then create it
             self.UID_CHANNEL_DB.append(newChan)
             result = True
             self.log.debug(f'New Channel Created: ({newChan})')
@@ -307,9 +329,12 @@ class Channel:
 
         for record in self.UID_CHANNEL_DB:
             if record.name == name:
+                # If the channel exist, then remove it and return True.
+                # As soon as the channel found, return True and stop the loop
                 self.UID_CHANNEL_DB.remove(record)
                 result = True
                 self.log.debug(f'Channel ({record.name}) has been created')
+                return result
 
         if not result:
             self.log.critical(f'The Channel {name} was not deleted')
@@ -325,13 +350,13 @@ class Channel:
                     for user_id in record.uids:
                         if self.Base.clean_uid(user_id) == uid:
                             record.uids.remove(user_id)
-                            self.log.debug(f'uid {uid} has been removed, here is the new object: {record}')
+                            self.log.debug(f'The UID {uid} has been removed, here is the new object: {record}')
                             result = True
 
             for record in self.UID_CHANNEL_DB:
                 if not record.uids:
                     self.UID_CHANNEL_DB.remove(record)
-                    self.log.debug(f'Channel {record.name} has been removed, here is the new object: {record}')
+                    self.log.debug(f'The Channel {record.name} has been removed, here is the new object: {record}')
 
             return result
         except ValueError as ve:
@@ -347,13 +372,3 @@ class Channel:
         self.log.debug(f'Search {name} -- result = {Channel}')
 
         return Channel
-
-    def get_mode(self, name:str) -> Union[str, None]:
-
-        mode = None
-        for record in self.UID_CHANNEL_DB:
-            if record.name == name:
-                mode = record.mode
-
-        self.log.debug(f'The mode of the channel {name} has been found: {mode}')
-        return mode

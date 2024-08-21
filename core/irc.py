@@ -803,10 +803,10 @@ class Irc:
 
                         get_uid_or_nickname = str(cmd[0].replace(':',''))
                         if len(cmd) == 6:
-                            if cmd[1] == 'PRIVMSG' and cmd[3] == ':auth':
+                            if cmd[1] == 'PRIVMSG' and str(cmd[3]).replace('.','') == ':auth':
                                 cmd_copy = cmd.copy()
                                 cmd_copy[5] = '**********'
-                                self.Base.logs.debug(cmd_copy)
+                                self.Base.logs.info(cmd_copy)
                             else:
                                 self.Base.logs.info(cmd)
                         else:
