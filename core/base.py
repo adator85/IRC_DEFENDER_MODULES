@@ -312,7 +312,7 @@ class Base:
                 if thread.getName() != 'heartbeat':
                     if not thread.is_alive():
                         self.running_threads.remove(thread)
-                        self.logs.debug(f"Thread {str(thread.getName())} {str(thread.native_id)} removed")
+                        self.logs.info(f"Thread {str(thread.getName())} {str(thread.native_id)} removed")
 
             # print(threading.enumerate())
         except AssertionError as ae:

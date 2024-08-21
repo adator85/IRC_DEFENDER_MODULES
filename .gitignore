@@ -3,4 +3,5 @@ db/
 logs/
 __pycache__/
 configuration.json
+install.log
 test.py
