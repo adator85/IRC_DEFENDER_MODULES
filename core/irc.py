@@ -28,8 +28,8 @@ class Irc:
 
         # Liste des commandes internes du bot
         self.commands_level = {
-            0: ['help', 'auth', 'copyright'],
-            1: ['load','reload','unload', 'deauth', 'uptime', 'checkversion'],
+            0: ['help', 'auth', 'copyright', 'uptime'],
+            1: ['load','reload','unload', 'deauth', 'checkversion'],
             2: ['show_modules', 'show_timers', 'show_threads', 'show_channels'],
             3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
         }
@@ -887,8 +887,8 @@ class Irc:
 
     def _hcmds(self, user: str, cmd:list, fullcmd: list = []) -> None:
 
-        fromuser = self.User.get_nickname(user)                                        # Nickname qui a lancé la commande
-        uid = self.User.get_uid(fromuser)                                              # Récuperer le uid de l'utilisateur
+        fromuser = self.User.get_nickname(user)                                   # Nickname qui a lancé la commande
+        uid = self.User.get_uid(fromuser)                                         # Récuperer le uid de l'utilisateur
 
         # Defender information
         dnickname = self.Config.SERVICE_NICKNAME                                  # Defender nickname
@@ -930,6 +930,11 @@ class Irc:
                 current_command = cmd[0]
                 user_to_log = self.User.get_nickname(cmd[1])
                 password = cmd[2]
+
+                if fromuser != user_to_log:
+                    # If the current nickname is different from the nickname you want to log in with
+                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Your current nickname is different from the nickname you want to log in with")
+                    return False
 
                 if not user_to_log is None:
                     mes_donnees = {'user': user_to_log, 'password': self.Base.crypt_password(password)}

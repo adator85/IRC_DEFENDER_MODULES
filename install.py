@@ -1,8 +1,12 @@
 from subprocess import check_call, run, CalledProcessError, PIPE
-from platform import python_version
+from platform import python_version, python_version_tuple, system
 from sys import exit
-import os, logging, shutil, pwd
+import os, logging, shutil
 
+try:
+    import pwd
+except ModuleNotFoundError as err:
+    print(err)
 
 class Install:
 
@@ -16,6 +20,7 @@ class Install:
         self.venv_dependencies: list[str]       = ['sqlalchemy','psutil','requests']
         self.install_folder                     = os.getcwd()
         self.osname                             = os.name
+        self.system_name                        = system()
         self.cmd_linux_requirements: list[str]  = ['apt', 'install', '-y', 'python3', 'python3-pip', 'python3-venv']
         self.venv_pip_full_path                 = os.path.join(self.venv_name, f'bin{os.sep}pip')
         self.venv_python_full_path              = os.path.join(self.venv_name, f'bin{os.sep}python')
@@ -28,6 +33,7 @@ class Install:
         if self.osname == 'nt':
             print('/!\\ Windows OS is not supported by this automatic installation /!\\')
             self.Logs.critical('/!\\ Windows OS is not supported by this automatic install /!\\')
+            print(self.system_name)
             exit(5)
 
         if not self.is_root():
@@ -47,7 +53,7 @@ class Install:
         self.install_linux_dependencies()
 
         # Check python version
-        self.checkPythonVersion()
+        self.check_python_version()
 
         # Create systemd service file
         self.create_service_file()
@@ -142,23 +148,29 @@ class Install:
             self.Logs.critical(f"Command failed :{e.returncode}")
             exit(5)
 
-    def checkPythonVersion(self) -> bool:
+    def check_python_version(self) -> bool:
         """Test si la version de python est autorisée ou non
 
         Returns:
             bool: True si la version de python est autorisé sinon False
         """
-        python_required_version = self.python_min_version.split('.')
-        python_current_version = python_version().split('.')
 
         self.Logs.debug(f'The current python version is: {python_version()}')
 
-        if int(python_current_version[0]) < int(python_required_version[0]):
-            print(f"## Your python version must be greather than or equal to {self.python_min_version} ##")
+        # Current system version
+        sys_major, sys_minor, sys_patch = python_version_tuple()
+
+        # min python version required
+        python_required_version = self.PYTHON_MIN_VERSION.split('.')
+        min_major, min_minor = tuple((python_required_version[0], python_required_version[1]))
+
+        if int(sys_major) < int(min_major):
+            print(f"## Your python version must be greather than or equal to {self.PYTHON_MIN_VERSION} ##")
             self.Logs.critical(f'Your python version must be greather than or equal to {self.python_min_version}')
             return False
-        elif int(python_current_version[1]) < int(python_required_version[1]):
-            print(f"### Your python version must be greather than or equal to {self.python_min_version} ###")
+
+        elif (int(sys_major) <= int(min_major)) and (int(sys_minor) < int(min_minor)):
+            print(f"## Your python version must be greather than or equal to {self.PYTHON_MIN_VERSION} ##")
             self.Logs.critical(f'Your python version must be greather than or equal to {self.python_min_version}')
             return False
 

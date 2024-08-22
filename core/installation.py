@@ -1,6 +1,6 @@
 from importlib.util import find_spec
 from subprocess import check_call, run, CalledProcessError
-from platform import python_version
+from platform import python_version, python_version_tuple
 from sys import exit
 import os
 
@@ -28,14 +28,19 @@ class Install:
         Returns:
             bool: True si la version de python est autorisé sinon False
         """
-        python_required_version = self.PYTHON_MIN_VERSION.split('.')
-        python_current_version = python_version().split('.')
+        # Current system version
+        sys_major, sys_minor, sys_patch = python_version_tuple()
 
-        if int(python_current_version[0]) < int(python_required_version[0]):
+        # min python version required
+        python_required_version = self.PYTHON_MIN_VERSION.split('.')
+        min_major, min_minor = tuple((python_required_version[0], python_required_version[1]))
+
+        if int(sys_major) < int(min_major):
             print(f"## Your python version must be greather than or equal to {self.PYTHON_MIN_VERSION} ##")
             return False
-        elif int(python_current_version[1]) < int(python_required_version[1]):
-            print(f"### Your python version must be greather than or equal to {self.PYTHON_MIN_VERSION} ###")
+
+        elif (int(sys_major) <= int(min_major)) and (int(sys_minor) < int(min_minor)):
+            print(f"## Your python version must be greather than or equal to {self.PYTHON_MIN_VERSION} ##")
             return False
 
         print(f"===> Version of python : {python_version()} ==> OK")
