@@ -275,9 +275,19 @@ class Channel:
     @dataclass
     class ChannelModel:
         name: str
+        """### Channel name 
+        It include the #"""
         uids: list
+        """### List of UID available in the channel
+        including their modes ~ @ % + *
+
+        Returns:
+            list: The list of UID's including theirs modes
+        """
 
     UID_CHANNEL_DB: list[ChannelModel] = []
+    """List that contains all the Channels objects (ChannelModel)
+    """
 
     def __init__(self, Base: Base) -> None:
         self.log = Base.logs
@@ -352,6 +362,26 @@ class Channel:
                             record.uids.remove(user_id)
                             self.log.debug(f'The UID {uid} has been removed, here is the new object: {record}')
                             result = True
+
+            for record in self.UID_CHANNEL_DB:
+                if not record.uids:
+                    self.UID_CHANNEL_DB.remove(record)
+                    self.log.debug(f'The Channel {record.name} has been removed, here is the new object: {record}')
+
+            return result
+        except ValueError as ve:
+            self.log.error(f'{ve}')
+
+    def delete_user_from_all_channel(self, uid:str) -> bool:
+        try:
+            result = False
+
+            for record in self.UID_CHANNEL_DB:
+                for user_id in record.uids:
+                    if self.Base.clean_uid(user_id) == self.Base.clean_uid(uid):
+                        record.uids.remove(user_id)
+                        self.log.debug(f'The UID {uid} has been removed, here is the new object: {record}')
+                        result = True
 
             for record in self.UID_CHANNEL_DB:
                 if not record.uids:

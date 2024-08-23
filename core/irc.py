@@ -30,7 +30,7 @@ class Irc:
         self.commands_level = {
             0: ['help', 'auth', 'copyright', 'uptime'],
             1: ['load','reload','unload', 'deauth', 'checkversion'],
-            2: ['show_modules', 'show_timers', 'show_threads', 'show_channels'],
+            2: ['show_modules', 'show_timers', 'show_threads', 'show_channels', 'show_users', 'show_admins'],
             3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
         }
 
@@ -418,6 +418,7 @@ class Irc:
             self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}MODULE_NOT_FOUND{self.Config.CONFIG_COLOR['noire']} ]: {moduleNotFound}")
         except Exception as e:
             self.Base.logs.error(f"Something went wrong with a module you want to load : {e}")
+            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}ERROR{self.Config.CONFIG_COLOR['noire']} ]: {e}")
 
     def insert_db_admin(self, uid:str, level:int) -> None:
 
@@ -619,8 +620,18 @@ class Irc:
                         # if self.Config.ABUSEIPDB == 1:
                         #     self.Base.create_thread(self.abuseipdb_scan, (cmd[2], ))
                         self.first_connexion_ip = cmd[2]
-                        self.first_score = int(cmd[3])
-                        pass
+
+                        self.first_score = 0
+                        if str(cmd[3]).find('*') != -1:
+                            # If * available, it means that an ircop changed the repurtation score
+                            # means also that the user exist will try to update all users with same IP
+                            self.first_score = int(str(cmd[3]).replace('*',''))
+                            for user in self.User.UID_DB:
+                                if user.remote_ip == self.first_connexion_ip:
+                                    user.score_connexion = self.first_score
+                        else:
+                            self.first_score = int(cmd[3])
+
                         # Possibilité de déclancher les bans a ce niveau.
                     except IndexError as ie:
                         self.Base.logs.error(f'{ie}')
@@ -695,6 +706,7 @@ class Irc:
                     cmd.pop(0)
                     uid_who_quit = str(cmd[0]).replace(':', '')
                     self.User.delete(uid_who_quit)
+                    self.Channel.delete_user_from_all_channel(uid_who_quit)
 
                 case 'PONG':
                     # ['@msgid=aTNJhp17kcPboF5diQqkUL;time=2023-12-28T20:35:58.411Z', ':irc.deb.biz.st', 'PONG', 'irc.deb.biz.st', ':Dev-PyDefender']
@@ -718,27 +730,34 @@ class Irc:
                 case 'SJOIN':
                     # ['@msgid=5sTwGdj349D82L96p749SY;time=2024-08-15T09:50:23.528Z', ':001', 'SJOIN', '1721564574', '#welcome', ':001JD94QH']
                     # ['@msgid=bvceb6HthbLJapgGLXn1b0;time=2024-08-15T09:50:11.464Z', ':001', 'SJOIN', '1721564574', '#welcome', '+lnrt', '13', ':001CIVLQF', '+11ZAAAAAB', '001QGR10C', '*@0014UE10B', '001NL1O07', '001SWZR05', '001HB8G04', '@00BAAAAAJ', '0019M7101']
+                    # ['@msgid=SKUeuVzOrTShRDduq8VerX;time=2024-08-23T19:37:04.266Z', ':001', 'SJOIN', '1723993047', '#welcome', '+lnrt', '13', 
+                    # ':001T6VU3F', '001JGWB2K', '@11ZAAAAAB', 
+                    # '001F16WGR', '001X9YMGQ', '*+001DYPFGP', '@00BAAAAAJ', '001AAGOG9', '001FMFVG8', '001DAEEG7', 
+                    # '&~G:unknown-users', '"~G:websocket-users', '"~G:known-users', '"~G:webirc-users']
                     cmd.pop(0)
                     channel = str(cmd[3]).lower()
-                    mode = cmd[4]
                     len_cmd = len(cmd)
                     list_users:list = []
-                    
+                    occurence = 0
                     start_boucle = 0
-                    
+
                     # Trouver le premier user
                     for i in range(len_cmd):
                         s: list = re.findall(fr':', cmd[i])
                         if s:
-                            start_boucle = i
+                            occurence += 1
+                            if occurence == 2:
+                                start_boucle = i
 
                     # Boucle qui va ajouter l'ensemble des users (UID)
                     for i in range(start_boucle, len(cmd)):
                         parsed_UID = str(cmd[i])
-                        pattern = fr'[:|@|%|\+|~|\*]*'
+                        # pattern = fr'[:|@|%|\+|~|\*]*'
                         pattern = fr':'
                         parsed_UID = re.sub(pattern, '', parsed_UID)
-                        list_users.append(parsed_UID)
+                        clean_uid = self.Base.clean_uid(parsed_UID)
+                        if len(clean_uid) == 9:
+                            list_users.append(parsed_UID)
 
                     self.Channel.insert(
                         self.Channel.ChannelModel(
@@ -1139,11 +1158,12 @@ class Irc:
                     class_name = module_name.split('_')[1].capitalize()                        # ==> Defender
 
                     if 'mods.' + module_name in sys.modules:
+                        self.Base.logs.info('Unload the module ...')
                         self.loaded_classes[class_name].unload()
                         self.Base.logs.info('Module Already Loaded ... reloading the module ...')
                         the_module = sys.modules['mods.' + module_name]
                         importlib.reload(the_module)
-                        
+
                         # Supprimer la class déja instancier
                         if class_name in self.loaded_classes:
                         # Supprimer les commandes déclarer dans la classe
@@ -1163,8 +1183,23 @@ class Irc:
                         return False
                     else:
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} n'est pas chargé !")
-                except:
-                    self.Base.logs.error(f"Something went wrong with a module you want to reload")
+
+                except TypeError as te:
+                    self.Base.logs.error(f"A TypeError raised: {te}")
+                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :A TypeError raised: {te}")
+                    self.Base.db_delete_module(module_name)
+                except AttributeError as ae:
+                    self.Base.logs.error(f"Missing Attribute: {ae}")
+                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Missing Attribute: {ae}")
+                    self.Base.db_delete_module(module_name)
+                except KeyError as ke:
+                    self.Base.logs.error(f"Key Error: {ke}")
+                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Key Error: {ke}")
+                    self.Base.db_delete_module(module_name)
+                except Exception as e:
+                    self.Base.logs.error(f"Something went wrong with a module you want to reload: {e}")
+                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Something went wrong with the module: {e}")
+                    self.Base.db_delete_module(module_name)
 
             case 'quit':
                 try:
@@ -1264,6 +1299,14 @@ class Irc:
                         list_nicknames.append(self.User.get_nickname(parsed_UID))
 
                     self.send2socket(f":{dnickname} NOTICE {fromuser} : Channel: {chan.name} - Users: {list_nicknames}")
+
+            case 'show_users':
+                for db_user in self.User.UID_DB:
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :UID : {db_user.uid} - isWebirc: {db_user.isWebirc} - Nickname: {db_user.nickname} - Connection: {db_user.connexion_datetime}")
+
+            case 'show_admins':
+                for db_admin in self.Admin.UID_ADMIN_DB:
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :UID : {db_admin.uid} - Nickname: {db_admin.nickname} - Level: {db_admin.level} - Connection: {db_admin.connexion_datetime}")
 
             case 'uptime':
                 uptime = self.get_defender_uptime()

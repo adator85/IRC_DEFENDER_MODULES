@@ -23,7 +23,9 @@ class Defender():
         reputation: int
         reputation_timer: int
         reputation_seuil: int
+        reputation_score_after_release: int
         reputation_ban_all_chan: int
+        reputation_sg: int
         local_scan: int
         psutil_scan: int
         abuseipdb_scan: int
@@ -81,7 +83,7 @@ class Defender():
             0: ['code'],
             1: ['join','part', 'info'],
             2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'ban', 'unban','kick', 'kickban'],
-            3: ['reputation','proxy_scan', 'flood', 'status', 'timer','show_reputation', 'show_users', 'sentinel']
+            3: ['reputation','proxy_scan', 'flood', 'status', 'timer','show_reputation', 'sentinel']
         }
         self.__set_commands(self.commands_level)                            # Enrigstrer les nouvelles commandes dans le code
 
@@ -173,12 +175,16 @@ class Defender():
         # Rejoindre les salons
         self.join_saved_channels()
 
-        # Variable qui va contenir les options de configuration du module Defender
-        self.ModConfig = self.ModConfModel(
-            reputation=0, reputation_timer=0, reputation_seuil=10, reputation_ban_all_chan=0,
-            local_scan=0, psutil_scan=0, abuseipdb_scan=0, freeipapi_scan=0, cloudfilt_scan=0,
-            flood=0, flood_message=5, flood_time=1, flood_timer=20
-        )
+        try:
+            # Variable qui va contenir les options de configuration du module Defender
+            self.ModConfig = self.ModConfModel(
+                reputation=0, reputation_timer=0, reputation_seuil=26, reputation_score_after_release=27, 
+                reputation_ban_all_chan=0,reputation_sg=1,
+                local_scan=0, psutil_scan=0, abuseipdb_scan=0, freeipapi_scan=0, cloudfilt_scan=0,
+                flood=0, flood_message=5, flood_time=1, flood_timer=20
+            )
+        except TypeError as te:
+            self.Logs.critical(te)
 
         # Logger en debug la variable de configuration
         self.Logs.debug(self.ModConfig)
@@ -470,7 +476,7 @@ class Defender():
         # - Defender devra libérer l'utilisateur et l'envoyer vers un salon défini dans la configuration {welcome_chan}
         # - Defender devra intégrer une liste d'IDs (pseudo/host) exemptés de 'Reputation security' malgré un score de rép. faible et un pseudo non enregistré.
         try:
-            
+
             get_reputation = self.reputation_get_Reputation(uid)
 
             if get_reputation is None:
@@ -479,7 +485,7 @@ class Defender():
 
             salon_logs = self.Config.SERVICE_CHANLOG
             salon_jail = self.Config.SALON_JAIL
-            
+
             code = get_reputation.secret_code
             jailed_nickname = get_reputation.nickname
             jailed_score = get_reputation.score
@@ -489,7 +495,7 @@ class Defender():
             color_bold = self.Config.CONFIG_COLOR['gras']
             service_id = self.Config.SERVICE_ID
             service_prefix = self.Config.SERVICE_PREFIX
-            reputation_ban_all_chan = self.Base.int_if_possible(self.ModConfig.reputation_ban_all_chan)
+            reputation_ban_all_chan = self.ModConfig.reputation_ban_all_chan
 
             if not get_reputation.isWebirc:
                 # Si le user ne vient pas de webIrc
@@ -518,7 +524,7 @@ class Defender():
             reputation_flag = self.ModConfig.reputation
             reputation_timer = self.ModConfig.reputation_timer
             reputation_seuil = self.ModConfig.reputation_seuil
-            ban_all_chan = self.Base.int_if_possible(self.ModConfig.reputation_ban_all_chan)
+            ban_all_chan = self.ModConfig.reputation_ban_all_chan
             service_id = self.Config.SERVICE_ID
             dchanlog = self.Config.SERVICE_CHANLOG
             color_red = self.Config.CONFIG_COLOR['rouge']
@@ -534,15 +540,11 @@ class Defender():
 
             for user in self.UID_REPUTATION_DB:
                 if not user.isWebirc: # Si il ne vient pas de WebIRC
-                    # self.Irc.debug(f"Nickname: {self.db_reputation[uid]['nickname']} | uptime: {self.get_user_uptime_in_minutes(uid)} | reputation time: {reputation_timer}")
                     if self.get_user_uptime_in_minutes(user.uid) >= reputation_timer and int(user.score) <= int(reputation_seuil):
                         self.Irc.send2socket(f":{service_id} PRIVMSG {dchanlog} :[{color_red} REPUTATION {color_black}] : Action sur {user.nickname} aprés {str(reputation_timer)} minutes d'inactivité")
-                        # if not system_reputation_timer_action(cglobal['reputation_timer_action'], uid, self.db_reputation[uid]['nickname']):
-                        #     return False
                         self.Irc.send2socket(f":{service_id} KILL {user.nickname} After {str(reputation_timer)} minutes of inactivity you should reconnect and type the password code ")
 
                         self.Logs.info(f"Nickname: {user.nickname} KILLED after {str(reputation_timer)} minutes of inactivity")
-
                         uid_to_clean.append(user.uid)
 
             for uid in uid_to_clean:
@@ -553,8 +555,9 @@ class Defender():
                         self.Irc.send2socket(f":{service_id} MODE {chan.name} -b {get_user_reputation.nickname}!*@*")
 
                 # Lorsqu'un utilisateur quitte, il doit être supprimé de {UID_DB}.
-                self.User.delete(uid)
+                self.Channel.delete_user_from_all_channel(uid)
                 self.reputation_delete(uid)
+                self.User.delete(uid)
 
         except AssertionError as ae:
             self.Logs.error(f'Assertion Error -> {ae}')
@@ -1004,6 +1007,9 @@ class Defender():
                 try:
                     self.reputation_first_connexion['ip'] = cmd[2]
                     self.reputation_first_connexion['score'] = cmd[3]
+                    if str(cmd[3]).find('*') != -1:
+                        # If the reputation changed, we do not need to scan the IP
+                        return None
 
                     if not self.Base.is_valid_ip(cmd[2]):
                         return None
@@ -1038,71 +1044,39 @@ class Defender():
                 self.flood(find_nickname, channel)
 
             case 'UID':
-
+                # If Init then do nothing
                 if self.Irc.INIT == 1:
                     return None
-
-                if 'webirc' in cmd[0]:
-                    isWebirc = True
-                else:
-                    isWebirc = False
 
                 # Supprimer la premiere valeur et finir le code normalement
                 cmd.pop(0)
 
-                uid = str(cmd[7])
-                nickname = str(cmd[2])
-                username = str(cmd[5])
-                hostname = str(cmd[6])
-                umodes = str(cmd[9])
-                vhost = str(cmd[10])
+                # Get User information
+                _User = self.User.get_User(str(cmd[7]))
+                if _User is None:
+                    self.Logs.critical(f'This UID: [{cmd[7]}] is not available please check why')
+                    return None
 
-                reputation_flag = self.Base.int_if_possible(self.ModConfig.reputation)
-                reputation_seuil = self.Base.int_if_possible(self.ModConfig.reputation_seuil)
+                reputation_flag = self.ModConfig.reputation
+                reputation_seuil = self.ModConfig.reputation_seuil
 
                 if self.Irc.INIT == 0:
-                    # A chaque nouvelle connexion chargé les données dans reputation
-                    client_ip = ''
-                    client_score = 0
-                    if 'ip' in self.reputation_first_connexion:
-                        client_ip = self.reputation_first_connexion['ip']
-                    if 'score' in self.reputation_first_connexion:
-                        client_score = self.reputation_first_connexion['score']
-
-                    # Si réputation activé lancer un whois sur le nickname connecté
-                    # Si le user n'es pas un service ni un IrcOP alors whois
-                    if not re.match(fr'^.*[S|o?].*$', umodes):
-                        if reputation_flag == 1 and int(client_score) <= int(reputation_seuil):
-                            # if not db_isTrusted_user(user_id):
-
-                            # get user information
-                            get_user = self.User.get_User(uid)
-                            if get_user is None:
-                                self.Logs.error(f'This UID {uid} does not exisit')
-
-                            # self.insert_db_reputation(uid, client_ip, nickname, username, hostname, umodes, vhost, client_score, isWebirc)
-                            
+                    # Si le user n'es pas un service ni un IrcOP
+                    if not re.match(fr'^.*[S|o?].*$', _User.umodes):
+                        if reputation_flag == 1 and _User.score_connexion <= reputation_seuil:
                             currentDateTime = self.Base.get_datetime()
                             self.reputation_insert(
                                 self.ReputationModel(
-                                    uid=uid,
-                                    nickname=nickname,
-                                    username=username,
-                                    hostname=hostname,
-                                    umodes=umodes,
-                                    vhost=vhost,
-                                    ip=client_ip,
-                                    score=client_score,
-                                    secret_code=self.Base.get_random(8),
-                                    isWebirc=isWebirc,
-                                    connected_datetime=currentDateTime,
+                                    uid=_User.uid, nickname=_User.nickname, username=_User.username, hostname=_User.hostname,
+                                    umodes=_User.umodes, vhost=_User.vhost, ip=_User.remote_ip, score=_User.score_connexion,
+                                    secret_code=self.Base.get_random(8), isWebirc=_User.isWebirc, connected_datetime=currentDateTime,
                                     updated_datetime=currentDateTime
                                 )
                             )
                             # self.Irc.send2socket(f":{service_id} WHOIS {nickname}")
-                            if self.reputation_check(uid):
-                                if reputation_flag == 1 and int(client_score) <= int(reputation_seuil):
-                                    self.system_reputation(uid)
+                            if self.reputation_check(_User.uid):
+                                if reputation_flag == 1 and _User.score_connexion <= reputation_seuil:
+                                    self.system_reputation(_User.uid)
                                     self.Logs.info('Démarrer le systeme de reputation')
 
             case 'SJOIN':
@@ -1110,19 +1084,6 @@ class Defender():
                 try:
                     cmd.pop(0)
                     parsed_chan = cmd[3]
-                    
-                    '''
-                    mode = ''
-                    if len(cmd) > 4:
-                        mode = cmd[4]
-                    
-                    self.Channel.insert(
-                        self.Channel.ChannelModel(
-                            name=parsed_chan,
-                            mode=mode
-                        )
-                    )
-                    '''
 
                     if self.ModConfig.reputation == 1:
                         parsed_UID = cmd[4]
@@ -1133,6 +1094,10 @@ class Defender():
 
                         if not get_reputation is None:
                             isWebirc = get_reputation.isWebirc
+
+                            if not isWebirc:
+                                if parsed_chan != self.Config.SALON_JAIL:
+                                    self.Irc.send2socket(f":{service_id} SAPART {get_reputation.nickname} {parsed_chan}")
 
                             if self.ModConfig.reputation_ban_all_chan == 1 and not isWebirc:
                                 if parsed_chan != self.Config.SALON_JAIL:
@@ -1172,24 +1137,25 @@ class Defender():
                     cmd.pop(0)
                     uid = str(cmd[0]).replace(':','')
                     get_Reputation = self.reputation_get_Reputation(uid)
+                    jail_salon = self.Config.SALON_JAIL
+                    service_id = self.Config.SERVICE_ID
 
                     if get_Reputation is None:
                         self.Logs.debug(f'This UID: {uid} is not listed in the reputation dataclass')
                         return None
 
+                    # Update the new nickname
                     oldnick = get_Reputation.nickname
                     newnickname = cmd[2]
-
-                    jail_salon = self.Config.SALON_JAIL
-                    service_id = self.Config.SERVICE_ID
-
-                    # self.update_db_reputation(uid, newnickname)
                     get_Reputation.nickname = newnickname
 
-                    for chan in self.Channel.UID_CHANNEL_DB:
-                        if chan.name != jail_salon:
-                            self.Irc.send2socket(f":{service_id} MODE {chan.name} -b {oldnick}!*@*")
-                            self.Irc.send2socket(f":{service_id} MODE {chan.name} +b {newnickname}!*@*")
+                    # If ban in all channel is ON then unban old nickname an ban the new nickname
+                    if self.ModConfig.reputation_ban_all_chan == 1:
+                        for chan in self.Channel.UID_CHANNEL_DB:
+                            if chan.name != jail_salon:
+                                self.Irc.send2socket(f":{service_id} MODE {chan.name} -b {oldnick}!*@*")
+                                self.Irc.send2socket(f":{service_id} MODE {chan.name} +b {newnickname}!*@*")
+
                 except KeyError as ke:
                     self.Logs.error(f'cmd - NICK - KeyError: {ke}')
 
@@ -1247,9 +1213,7 @@ class Defender():
                 try:
                     timer_sent = self.Base.int_if_possible(cmd[1])
                     timer_sent = int(timer_sent)
-                    # self.Irc.create_ping_timer(timer_sent, 'Defender', 'run_db_action_timer')
                     self.Base.create_timer(timer_sent, self.run_db_action_timer)
-                    # self.Base.create_timer(timer_sent, self.Base.garbage_collector_sockets)
 
                 except TypeError as te:
                     self.Logs.error(f"Type Error -> {te}")
@@ -1262,7 +1226,7 @@ class Defender():
                     self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} : No one is suspected')
 
                 for suspect in self.UID_REPUTATION_DB:
-                    self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} : Uid: {suspect.uid} | Nickname: {suspect.nickname} | Connected on: {suspect.connected_datetime} | Updated on: {suspect.updated_datetime}')
+                    self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} : Uid: {suspect.uid} | Nickname: {suspect.nickname} | Reputation: {suspect.score} | Secret code: {suspect.secret_code} | Connected on: {suspect.connected_datetime}')
 
             case 'code':
                 try:
@@ -1297,21 +1261,20 @@ class Defender():
                         self.Logs.debug(f'{jailed_UID} - {jailed_nickname} removed from REPUTATION_DB')
                         self.Irc.send2socket(f":{service_id} SAPART {jailed_nickname} {jailed_salon}")
                         self.Irc.send2socket(f":{service_id} SAJOIN {jailed_nickname} {welcome_salon}")
-                        self.Irc.send2socket(f":{link} REPUTATION {jailed_IP} {int(reputation_seuil) + 1}")
+                        self.Irc.send2socket(f":{link} REPUTATION {jailed_IP} {self.ModConfig.reputation_score_after_release}")
                         self.User.get_User(jailed_UID).score_connexion = reputation_seuil + 1
                         self.Irc.send2socket(f":{service_id} PRIVMSG {jailed_nickname} :[{color_green} MOT DE PASS CORRECT {color_black}] : You have now the right to enjoy the network !")
 
                     else:
                         self.Irc.send2socket(f':{dnickname} PRIVMSG {jailed_salon} : Mauvais password')
                         self.Irc.send2socket(f":{service_id} PRIVMSG {jailed_nickname} :[{color_green} MAUVAIS PASSWORD {color_black}]")
-                    
+
                 except IndexError:
                     self.Logs.error('_hcmd code: out of index')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} code [code]')
                 except KeyError as ke:
                     self.Logs.error(f'_hcmd code: KeyError {ke}')
                     # self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} code [code]')
-                pass
 
             case 'reputation':
                 # .reputation [on/off] --> activate or deactivate reputation system
@@ -1336,6 +1299,15 @@ class Defender():
                             self.Irc.send2socket(f":{service_id} JOIN {jail_chan}")
                             self.Irc.send2socket(f":{service_id} SAMODE {jail_chan} +{dumodes} {dnickname}")
                             self.Irc.send2socket(f":{service_id} MODE {jail_chan} +{jail_chan_mode}")
+
+                            if self.ModConfig.reputation_sg == 1:
+                                for chan in self.Channel.UID_CHANNEL_DB:
+                                    if chan.name != jail_chan:
+                                        self.Irc.send2socket(f":{service_id} MODE {chan.name} +b ~security-group:unknown-users")
+                                        self.Irc.send2socket(f":{service_id} MODE {chan.name} +e ~security-group:webirc-users")
+                                        self.Irc.send2socket(f":{service_id} MODE {chan.name} +e ~security-group:known-users")
+                                        self.Irc.send2socket(f":{service_id} MODE {chan.name} +e ~security-group:websocket-users")
+
                             self.add_defender_channel(jail_chan)
 
                         if activation == 'off':
@@ -1349,17 +1321,26 @@ class Defender():
                             self.Irc.send2socket(f":{service_id} SAMODE {jail_chan} -{dumodes} {dnickname}")
                             self.Irc.send2socket(f":{service_id} MODE {jail_chan} -sS")
                             self.Irc.send2socket(f":{service_id} PART {jail_chan}")
+
+                            for chan in self.Channel.UID_CHANNEL_DB:
+                                if chan.name != jail_chan:
+                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -b ~security-group:unknown-users")
+                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -e ~security-group:webirc-users")
+                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -e ~security-group:known-users")
+                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -e ~security-group:websocket-users")
+
                             self.delete_defender_channel(jail_chan)
 
                     if len_cmd == 4:
                         get_set = str(cmd[1]).lower()
-                        
+
                         if get_set != 'set':
-                            return False
+                            raise IndexError('Showing help')
 
                         get_options = str(cmd[2]).lower()
 
                         match get_options:
+
                             case 'banallchan':
                                 key = 'reputation_ban_all_chan'
                                 get_value = str(cmd[3]).lower()
@@ -1379,6 +1360,7 @@ class Defender():
 
                                     self.update_db_configuration(key, 0)
                                     self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}BAN ON ALL CHANS{self.Config.CONFIG_COLOR["noire"]} ] : Deactivated by {fromuser}')
+
                             case 'limit':
                                 reputation_seuil = int(cmd[3])
                                 key = 'reputation_seuil'
@@ -1394,14 +1376,34 @@ class Defender():
                                 self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}REPUTATION TIMER{self.Config.CONFIG_COLOR["noire"]} ] : Timer set to {str(reputation_timer)} minute(s) by {fromuser}')
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Reputation set to {reputation_timer}')
 
+                            case 'score_after_release':
+                                reputation_score_after_release = int(cmd[3])
+                                key = 'reputation_score_after_release'
+                                self.update_db_configuration(key, reputation_score_after_release)
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}REPUTATION SCORE AFTER RELEASE{self.Config.CONFIG_COLOR["noire"]} ] : Reputation score after release set to {str(reputation_score_after_release)} by {fromuser}')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Reputation score after release set to {reputation_score_after_release}')
+
+                            case 'security_group':
+                                reputation_sg = int(cmd[3])
+                                key = 'reputation_sg'
+                                self.update_db_configuration(key, reputation_sg)
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}REPUTATION SECURITY-GROUP{self.Config.CONFIG_COLOR["noire"]} ] : Reputation Security-group set to {str(reputation_sg)} by {fromuser}')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Reputation score after release set to {reputation_sg}')
+
                             case _:
-                                pass
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Right command : /msg {dnickname} reputation [ON/OFF]')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Right command : /msg {dnickname} reputation set banallchan [ON/OFF]')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Right command : /msg {dnickname} reputation set limit [1234]')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Right command : /msg {dnickname} reputation set score_after_release [1234]')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Right command : /msg {dnickname} reputation set timer [1234]')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Right command : /msg {dnickname} reputation set action [kill|None]')
 
                 except IndexError as ie:
                     self.Logs.warning(f'{ie}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} reputation [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} reputation set banallchan [ON/OFF]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} reputation set limit [1234]')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} reputation set score_after_release [1234]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} reputation set timer [1234]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} reputation set action [kill|None]')
 
@@ -1583,6 +1585,7 @@ class Defender():
                 try:
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : [{color_green if self.ModConfig.reputation == 1 else color_red}Reputation{color_black}]                           ==> {self.ModConfig.reputation}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :           reputation_seuil             ==> {self.ModConfig.reputation_seuil}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :           reputation_after_release     ==> {self.ModConfig.reputation_score_after_release}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :           reputation_ban_all_chan      ==> {self.ModConfig.reputation_ban_all_chan}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :           reputation_timer             ==> {self.ModConfig.reputation_timer}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : [Proxy_scan]')
@@ -1923,8 +1926,3 @@ class Defender():
                         if not chan.name in channel_to_dont_quit:
                             self.Irc.send2socket(f":{service_id} PART {chan.name}")
                     self.join_saved_channels()
-
-            case 'show_users':
-
-                for db_user in self.User.UID_DB:
-                    self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :UID : {db_user.uid} - isWebirc: {db_user.isWebirc} - Nickname: {db_user.nickname} - Connection: {db_user.connexion_datetime}")
