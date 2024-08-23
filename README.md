@@ -23,27 +23,27 @@ Il permet aux opérateurs de gérer efficacement un canal, tout en offrant aux u
 
 # Installation automatique sur une machine Debian/Ubuntu
 
-Prérequis:
-    - Système d'exploitation Linux (Windows non supporté)
-    - Droits d'administrateur (root) pour l'exécution du script
-    - Python version 3.10 ou supérieure
+    Prérequis:
+        - Système d'exploitation Linux (Windows non supporté)
+        - Droits d'administrateur (root) pour l'exécution du script
+        - Python version 3.10 ou supérieure
 
-Bash
-    $ git clone https://github.com/adator85/IRC_DEFENDER_MODULES.git
-    - Renommer le fichier exemple_configuration.json en configuration.json
-    - Configurer le fichier configuration.json
-    $ sudo python3 install.py
+    Bash:
+        $ git clone https://github.com/adator85/IRC_DEFENDER_MODULES.git
+        - Renommer le fichier exemple_configuration.json en configuration.json
+        - Configurer le fichier configuration.json
+        $ sudo python3 install.py
 
 Si votre configuration est bonne, votre service est censé etre connecté a votre réseau IRC
 
 # Installation manuelle:
-Bash
-    $ git clone https://github.com/adator85/IRC_DEFENDER_MODULES.git
-    $ cd IRC_DEFENDER_MODULES
-    $ python3 -m venv .pyenv
-    $ source .pyenv/bin/activate
-    - Créer un service nommé "Defender.service" pour votre service et placer le dans "/etc/systemd/system/"
-    $ sudo systemctl start Defender
+    Bash:
+        $ git clone https://github.com/adator85/IRC_DEFENDER_MODULES.git
+        $ cd IRC_DEFENDER_MODULES
+        $ python3 -m venv .pyenv
+        $ source .pyenv/bin/activate
+        - Créer un service nommé "Defender.service" pour votre service et placer le dans "/etc/systemd/system/"
+        $ sudo systemctl start Defender
 
 # Configuration
 
