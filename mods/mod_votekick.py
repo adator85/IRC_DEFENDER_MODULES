@@ -20,10 +20,14 @@ class Votekick():
         voter_users: list
         vote_for: int
         vote_against: int
-    
+
     VOTE_CHANNEL_DB:list[VoteChannelModel] = []
 
     def __init__(self, ircInstance:Irc) -> None:
+
+        # Module name (Mandatory)
+        self.module_name = 'mod_' + str(self.__class__.__name__).lower()
+
         # Add Irc Object to the module
         self.Irc = ircInstance
 
@@ -52,7 +56,7 @@ class Votekick():
         self.__init_module()
 
         # Log the module
-        self.Logs.debug(f'Module {self.__class__.__name__} loaded ...')
+        self.Logs.debug(f'Module {self.module_name} loaded ...')
 
     def __init_module(self) -> None:
 
@@ -143,7 +147,7 @@ class Votekick():
         if not found:
             self.VOTE_CHANNEL_DB.append(ChannelObject)
             self.Logs.debug(f"The channel has been added {ChannelObject}")
-            self.db_add_vote_channel(ChannelObject.channel_name)
+            # self.db_add_vote_channel(ChannelObject.channel_name)
 
         return result
 
@@ -222,7 +226,7 @@ class Votekick():
                     self.Irc.send2socket(f":{dnickname} KICK {channel} {target_user} Following the vote, you are not welcome in {channel}")
                     self.Channel.delete_user_from_channel(channel, self.User.get_uid(target_user))
                 elif chan.vote_for <= chan.vote_against:
-                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This user will stay on this channel')
+                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This user [{target_user}] will stay on this channel')
 
                 # Init the system
                 if self.init_vote_system(channel):
@@ -241,30 +245,14 @@ class Votekick():
 
         return None
 
-    def _hcmds(self, user:str, cmd: list, fullcmd: list = []) -> None:
+    def _hcmds(self, user:str, channel: any, cmd: list, fullcmd: list = []) -> None:
         # cmd is the command starting from the user command
         # full cmd is sending the entire server response
 
         command = str(cmd[0]).lower()
         dnickname = self.Config.SERVICE_NICKNAME
         fromuser = user
-
-        if len(fullcmd) >= 3:
-            fromchannel = str(fullcmd[2]).lower() if self.Base.Is_Channel(str(fullcmd[2]).lower()) else None
-        else:
-            fromchannel = None
-
-        if len(cmd) >= 2:
-            sentchannel = str(cmd[1]).lower() if self.Base.Is_Channel(str(cmd[1]).lower()) else None
-        else:
-            sentchannel = None
-
-        if not fromchannel is None:
-            channel = fromchannel
-        elif not sentchannel is None:
-            channel = sentchannel
-        else:
-            channel = None
+        fromchannel = channel
 
         match command:
 
@@ -286,7 +274,7 @@ class Votekick():
             case 'vote_for':
                 try:
                     # vote_for
-                    channel = str(fullcmd[2]).lower()
+                    channel = fromchannel
                     for chan in self.VOTE_CHANNEL_DB:
                         if chan.channel_name == channel:
                             if fromuser in chan.voter_users:
@@ -305,7 +293,7 @@ class Votekick():
             case 'vote_against':
                 try:
                     # vote_against
-                    channel = str(fullcmd[2]).lower()
+                    channel = fromchannel
                     for chan in self.VOTE_CHANNEL_DB:
                         if chan.channel_name == channel:
                             if fromuser in chan.voter_users:
@@ -371,6 +359,9 @@ class Votekick():
 
                     uid_cleaned = self.Base.clean_uid(uid_submitted)
                     ChannelInfo = self.Channel.get_Channel(channel)
+                    if ChannelInfo is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :This channel [{channel}] do not exist in the Channel Object')
+                        return False
 
                     clean_uids_in_channel: list = []
                     for uid in ChannelInfo.uids:
@@ -404,11 +395,13 @@ class Votekick():
             case 'activate':
                 try:
                     # activate #channel
-                    # channel = str(cmd[1]).lower()
+                    sentchannel = str(cmd[1]).lower() if self.Base.Is_Channel(str(cmd[1]).lower()) else None
+                    if sentchannel is None:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The correct command is {self.Config.SERVICE_PREFIX}ACTIVATE #CHANNEL")
 
                     self.insert_vote_channel(
                         self.VoteChannelModel(
-                            channel_name=channel, 
+                            channel_name=sentchannel,
                             target_user='',
                             voter_users=[],
                             vote_for=0,
@@ -416,9 +409,11 @@ class Votekick():
                             )
                         )
 
-                    self.Irc.send2socket(f":{dnickname} JOIN {channel}")
-                    self.Irc.send2socket(f":{dnickname} SAMODE {channel} +o {dnickname}")
-                    self.Irc.send2socket(f":{dnickname} PRIVMSG {channel} :You can now use !submit <nickname> to decide if he will stay or not on this channel ")
+                    self.Base.db_query_channel('add', self.module_name, sentchannel)
+
+                    self.Irc.send2socket(f":{dnickname} JOIN {sentchannel}")
+                    self.Irc.send2socket(f":{dnickname} SAMODE {sentchannel} +o {dnickname}")
+                    self.Irc.send2socket(f":{dnickname} PRIVMSG {sentchannel} :You can now use !submit <nickname> to decide if he will stay or not on this channel ")
 
                 except KeyError as ke:
                     self.Logs.error(f"Key Error : {ke}")
@@ -426,16 +421,20 @@ class Votekick():
             case 'deactivate':
                 try:
                     # deactivate #channel
-                    # channel = str(cmd[1]).lower()
+                    sentchannel = str(cmd[1]).lower() if self.Base.Is_Channel(str(cmd[1]).lower()) else None
+                    if sentchannel is None:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The correct command is {self.Config.SERVICE_PREFIX}DEACTIVATE #CHANNEL")
 
-                    self.Irc.send2socket(f":{dnickname} SAMODE {channel} -o {dnickname}")
-                    self.Irc.send2socket(f":{dnickname} PART {channel}")
+                    self.Irc.send2socket(f":{dnickname} SAMODE {sentchannel} -o {dnickname}")
+                    self.Irc.send2socket(f":{dnickname} PART {sentchannel}")
 
                     for chan in self.VOTE_CHANNEL_DB:
-                        if chan.channel_name == channel:
+                        if chan.channel_name == sentchannel:
                             self.VOTE_CHANNEL_DB.remove(chan)
-                            self.db_delete_vote_channel(chan.channel_name)
+                            self.Base.db_query_channel('del', self.module_name, chan.channel_name)
+                            # self.db_delete_vote_channel(chan.channel_name)
 
-                    self.Logs.debug(f"Test logs ready")
+                    self.Logs.debug(f"The Channel {sentchannel} has been deactivated from the vote system")
+
                 except KeyError as ke:
                     self.Logs.error(f"Key Error : {ke}")

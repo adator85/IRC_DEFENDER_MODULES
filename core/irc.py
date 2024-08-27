@@ -12,7 +12,6 @@ class Irc:
 
         self.defender_connexion_datetime = datetime.now()   # Date et heure de la premiere connexion de Defender
         self.first_score: int = 100
-        self.db_chan = []                                   # Definir la variable qui contiendra la liste des salons
         self.loaded_classes:dict[str, 'Irc'] = {}           # Definir la variable qui contiendra la liste modules chargés
         self.beat = 30                                      # Lancer toutes les 30 secondes des actions de nettoyages
         self.hb_active = True                               # Heartbeat active
@@ -31,7 +30,7 @@ class Irc:
             0: ['help', 'auth', 'copyright', 'uptime'],
             1: ['load','reload','unload', 'deauth', 'checkversion'],
             2: ['show_modules', 'show_timers', 'show_threads', 'show_channels', 'show_users', 'show_admins'],
-            3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
+            3: ['quit', 'restart','addaccess','editaccess', 'delaccess','umode']
         }
 
         # l'ensemble des commandes.
@@ -44,6 +43,8 @@ class Irc:
         self.User = User(self.Base)
         self.Admin = Admin(self.Base)
         self.Channel = Channel(self.Base)
+
+        self.__create_table()
         self.Base.create_thread(func=self.heartbeat, func_args=(self.beat, ))
 
     ##############################################
@@ -90,7 +91,7 @@ class Irc:
         except OSError as oe:
             self.Base.logs.critical(f"OSError __create_socket: {oe} - {soc.fileno()}")
         except AttributeError as ae:
-            self.Base.logs.critical(f"OSError __create_socket: {oe} - {soc.fileno()}")
+            self.Base.logs.critical(f"AttributeError __create_socket: {ae} - {soc.fileno()}")
 
     def __ssl_context(self) -> ssl.SSLContext:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -107,6 +108,7 @@ class Irc:
             self.__link(self.IrcSocket)                         # établir la connexion au serveur IRC
             self.signal = True                                  # Une variable pour initier la boucle infinie
             self.load_existing_modules()                        # Charger les modules existant dans la base de données
+            self.__join_saved_channels()                        # Join existing channels
 
             while self.signal:
                 try:
@@ -158,17 +160,18 @@ class Irc:
             self.IrcSocket.shutdown(socket.SHUT_RDWR)
             self.IrcSocket.close()
             self.Base.logs.info("--> Fermeture de Defender ...")
+            sys.exit(0)
 
         except AssertionError as ae:
-            self.Base.logs.error(f'Assertion error : {ae}')
+            self.Base.logs.error(f'AssertionError: {ae}')
         except ValueError as ve:
-            self.Base.logs.error(f'Value Error : {ve}')
+            self.Base.logs.error(f'ValueError: {ve}')
         except ssl.SSLEOFError as soe:
-            self.Base.logs.error(f"OS Error __connect_to_irc: {soe}")
+            self.Base.logs.error(f"SSLEOFError: {soe}")
         except AttributeError as atte:
-            self.Base.logs.critical(f"{atte}")
-        # except Exception as e:
-        #     self.debug(f"Exception: {e}")
+            self.Base.logs.critical(f"AttributeError: {atte}")
+        except Exception as e:
+            self.Base.logs.critical(f"Exception: {e}")
 
     def __link(self, writer:Union[socket.socket, SSLSocket]) -> None:
         """Créer le link et envoyer les informations nécessaires pour la 
@@ -199,7 +202,8 @@ class Irc:
 
             # Envoyer un message d'identification
             writer.send(f":{sid} PASS :{password}\r\n".encode('utf-8'))
-            writer.send(f":{sid} PROTOCTL NICKv2 VHP UMODE2 NICKIP SJOIN SJOIN2 SJ3 NOQUIT TKLEXT MLOCK SID MTAGS\r\n".encode('utf-8'))
+            writer.send(f":{sid} PROTOCTL SID NOQUIT NICKv2 SJOIN SJ3 NICKIP TKLEXT2 NEXTBANS CLK EXTSWHOIS MLOCK MTAGS\r\n".encode('utf-8'))
+            # writer.send(f":{sid} PROTOCTL NICKv2 VHP UMODE2 NICKIP SJOIN SJOIN2 SJ3 NOQUIT TKLEXT MLOCK SID MTAGS\r\n".encode('utf-8'))
             writer.send(f":{sid} PROTOCTL EAUTH={link},,,{service_name}-v{version}\r\n".encode('utf-8'))
             writer.send(f":{sid} PROTOCTL SID={sid}\r\n".encode('utf-8'))
             writer.send(f":{sid} SERVER {link} 1 :{info}\r\n".encode('utf-8'))
@@ -207,13 +211,26 @@ class Irc:
             writer.send(f":{sid} UID {nickname} 1 {unixtime} {username} {host} {service_id} * {smodes} * * * :{realname}\r\n".encode('utf-8'))
             writer.send(f":{sid} SJOIN {unixtime} {chan} + :{service_id}\r\n".encode('utf-8'))
             writer.send(f":{sid} MODE {chan} +{cmodes}\r\n".encode('utf-8'))
-            writer.send(f":{service_id} SAMODE {chan} +{umodes} {nickname}\r\n".encode('utf-8'))
+            writer.send(f":{sid} SAMODE {chan} +{umodes} {nickname}\r\n".encode('utf-8'))
 
             self.Base.logs.debug('Link information sent to the server')
 
             return None
         except AttributeError as ae:
             self.Base.logs.critical(f'{ae}')
+
+    def __join_saved_channels(self) -> None:
+        
+        core_table = 'core_channel'
+        
+        query = f'''SELECT distinct channel_name FROM {core_table}'''
+        exec_query = self.Base.db_execute_query(query)
+        result_query = exec_query.fetchall()
+
+        if result_query:
+            for chan_name in result_query:
+                chan = chan_name[0]
+                self.send2socket(f":{self.Config.SERVEUR_ID} SJOIN {self.Base.get_unixtime()} {chan} + :{self.Config.SERVICE_ID}")
 
     def send2socket(self, send_message:str) -> None:
         """Envoit les commandes à envoyer au serveur.
@@ -268,13 +285,18 @@ class Irc:
     #             FIN CONNEXION IRC              #
     ##############################################
 
+    def __create_table(self):
+        """## Create core tables
+        """
+        pass
+
     def load_existing_modules(self) -> None:
         """Charge les modules qui existe déja dans la base de données
 
         Returns:
             None: Aucun retour requis, elle charge puis c'est tout
         """
-        result = self.Base.db_execute_query(f"SELECT module FROM {self.Config.table_module}")
+        result = self.Base.db_execute_query(f"SELECT module_name FROM {self.Config.table_module}")
         for r in result.fetchall():
             self.load_module('sys', r[0], True)
 
@@ -663,7 +685,6 @@ class Irc:
                             else:
                                 version = f'{current_version}'
 
-                            self.send2socket(f"MODE {self.Config.SERVICE_NICKNAME} +B")
                             self.send2socket(f"JOIN {self.Config.SERVICE_CHANLOG}")
                             print(f"################### DEFENDER ###################")
                             print(f"#               SERVICE CONNECTE                ")
@@ -819,8 +840,10 @@ class Irc:
                     try:
                         # Supprimer la premiere valeur
                         cmd.pop(0)
-
                         get_uid_or_nickname = str(cmd[0].replace(':',''))
+                        user_trigger = self.User.get_nickname(get_uid_or_nickname)
+                        dnickname = self.Config.SERVICE_NICKNAME
+
                         if len(cmd) == 6:
                             if cmd[1] == 'PRIVMSG' and str(cmd[3]).replace('.','') == ':auth':
                                 cmd_copy = cmd.copy()
@@ -830,10 +853,6 @@ class Irc:
                                 self.Base.logs.info(cmd)
                         else:
                             self.Base.logs.info(f'{cmd}')
-                        # user_trigger = get_user.split('!')[0]
-                        # user_trigger = self.get_nickname(get_uid_or_nickname)
-                        user_trigger = self.User.get_nickname(get_uid_or_nickname)
-                        dnickname = self.Config.SERVICE_NICKNAME
 
                         pattern = fr'(:\{self.Config.SERVICE_PREFIX})(.*)$'
                         hcmds = re.search(pattern, ' '.join(cmd)) # va matcher avec tout les caractéres aprés le .
@@ -850,7 +869,8 @@ class Irc:
                             cmd_to_send = convert_to_string.replace(':','')
                             self.Base.log_cmd(user_trigger, cmd_to_send)
 
-                            self._hcmds(user_trigger, arg, cmd)
+                            fromchannel = str(cmd[2]).lower() if self.Base.Is_Channel(cmd[2]) else None
+                            self._hcmds(user_trigger, fromchannel, arg, cmd)
 
                         if cmd[2] == self.Config.SERVICE_ID:
                             pattern = fr'^:.*?:(.*)$'
@@ -888,7 +908,11 @@ class Irc:
                                 cmd_to_send = convert_to_string.replace(':','')
                                 self.Base.log_cmd(self.User.get_nickname(user_trigger), cmd_to_send)
 
-                                self._hcmds(user_trigger, arg, cmd)
+                                fromchannel = None
+                                if len(arg) >= 2:
+                                    fromchannel = str(arg[1]).lower() if self.Base.Is_Channel(arg[1]) else None
+
+                                self._hcmds(user_trigger, fromchannel, arg, cmd)
 
                     except IndexError as io:
                         self.Base.logs.error(f'{io}')
@@ -904,7 +928,7 @@ class Irc:
         except IndexError as ie:
             self.Base.logs.error(f"{ie} / {cmd} / length {str(len(cmd))}")
 
-    def _hcmds(self, user: str, cmd:list, fullcmd: list = []) -> None:
+    def _hcmds(self, user: str, channel: Union[str, None], cmd:list, fullcmd: list = []) -> None:
 
         fromuser = self.User.get_nickname(user)                                   # Nickname qui a lancé la commande
         uid = self.User.get_uid(fromuser)                                         # Récuperer le uid de l'utilisateur
@@ -925,7 +949,7 @@ class Irc:
         # Envoyer la commande aux classes dynamiquement chargées
         if command != 'notallowed':
             for classe_name, classe_object in self.loaded_classes.items():
-                classe_object._hcmds(user, cmd, fullcmd)
+                classe_object._hcmds(user, channel, cmd, fullcmd)
 
         match command:
 
@@ -1229,9 +1253,6 @@ class Irc:
                     reason.append(cmd[i])
                 final_reason = ' '.join(reason)
 
-                # self.db_uid.clear()                     #Vider UID_DB
-                # self.db_chan = []                       #Vider les salons
-
                 self.User.UID_DB.clear()                # Clear User Object
                 self.Channel.UID_CHANNEL_DB.clear()     # Clear Channel Object
 
@@ -1250,7 +1271,7 @@ class Irc:
                 self.Base.logs.debug(self.loaded_classes)
                 all_modules  = self.Base.get_all_modules()
 
-                results = self.Base.db_execute_query(f'SELECT module FROM {self.Config.table_module}')
+                results = self.Base.db_execute_query(f'SELECT module_name FROM {self.Config.table_module}')
                 results = results.fetchall()
 
                 # if len(results) == 0:
@@ -1277,17 +1298,15 @@ class Irc:
             case 'show_timers':
 
                 if self.Base.running_timers:
-                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :{self.Base.running_timers}")
+                    for the_timer in self.Base.running_timers:
+                        self.send2socket(f":{dnickname} NOTICE {fromuser} :>> {the_timer.getName()} - {the_timer.is_alive()}")
                 else:
-                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :Aucun timers en cours d'execution")
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :Aucun timers en cours d'execution")
 
             case 'show_threads':
 
-                running_thread_name:list = []
                 for thread in self.Base.running_threads:
-                    running_thread_name.append(f"{thread.getName()} ({thread.is_alive()})")
-
-                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :{str(running_thread_name)}")
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :>> {thread.getName()} ({thread.is_alive()})")
 
             case 'show_channels':
 
@@ -1321,6 +1340,16 @@ class Irc:
                     self.thread_check_for_new_version,
                     (fromuser, )
                 )
+
+            case 'umode':
+                try:
+                    # .umode nickname +mode
+                    nickname = str(cmd[1])
+                    umode = str(cmd[2])
+
+                    self.send2socket(f':{dnickname} SVSMODE {nickname} {umode}')
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
 
             case _:
                 pass

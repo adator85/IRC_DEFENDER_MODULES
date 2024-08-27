@@ -52,6 +52,8 @@ class ConfigDataModel:
     table_commande: str
     table_log: str
     table_module: str
+    table_config: str
+    table_channel: str
 
     current_version: str
     latest_version: str
@@ -113,10 +115,12 @@ class Config:
             GLINE_DURATION=import_config["GLINE_DURATION"],
             DEBUG_LEVEL=import_config["DEBUG_LEVEL"],
             CONFIG_COLOR=import_config["CONFIG_COLOR"],
-            table_admin='sys_admins',
-            table_commande='sys_commandes',
-            table_log='sys_logs',
-            table_module='sys_modules',
+            table_admin='core_admin',
+            table_commande='core_command',
+            table_log='core_log',
+            table_module='core_module',
+            table_config='core_config',
+            table_channel='core_channel',
             current_version='',
             latest_version='',
             db_name='defender',
