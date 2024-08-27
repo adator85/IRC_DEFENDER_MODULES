@@ -4,7 +4,6 @@ from typing import Union
 import re, socket, psutil, requests, json, time
 from sys import exit
 from core.irc import Irc
-from test import Test
 
 #   Le module crée devra réspecter quelques conditions
 #       1. Le nom de la classe devra toujours s'appeler comme le module. Exemple => nom de class Defender | nom du module mod_defender

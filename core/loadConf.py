@@ -1,4 +1,4 @@
-import json
+import json, sys
 from os import sep
 from typing import Union
 from dataclasses import dataclass, field
@@ -72,16 +72,21 @@ class Config:
         return None
 
     def __load_json_service_configuration(self):
+        try:
+            conf_filename = f'core{sep}configuration.json'
+            with open(conf_filename, 'r') as configuration_data:
+                configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
 
-        conf_filename = f'core{sep}configuration.json'
-        with open(conf_filename, 'r') as configuration_data:
-            configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
+            for key, value in configuration['CONFIG_COLOR'].items():
+                configuration['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
 
-        for key, value in configuration['CONFIG_COLOR'].items():
-            configuration['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
-        
-        return configuration
-    
+            return configuration
+
+        except FileNotFoundError as fe:
+            print(f'FileNotFound: {fe}')
+            print('Configuration file not found please create core/configuration.json')
+            sys.exit(0)
+
     def __load_service_configuration(self) -> ConfigDataModel:
         import_config = self.__load_json_service_configuration()
 

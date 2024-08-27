@@ -208,10 +208,12 @@ class Clone():
                     if clone_name.lower() == 'all':
                         for clone in self.ModConfig.clone_nicknames:
                             self.Irc.send2socket(f':{dnickname} PRIVMSG {clone} :KILL')
+                            self.ModConfig.clone_nicknames.remove(clone)
                     else:
                         for clone in self.ModConfig.clone_nicknames:
                             if clone_name == clone:
                                 self.Irc.send2socket(f':{dnickname} PRIVMSG {clone} :KILL')
+                                self.ModConfig.clone_nicknames.remove(clone)
 
                 except Exception as err:
                     self.Logs.error(f'{err}')
