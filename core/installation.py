@@ -182,11 +182,7 @@ class Install:
             print(f'/!\\ Service file already exist /!\\')
             return None
 
-        # Check if user systemd is available (.config/systemd/user/)
-        if not os.path.exists(self.config.unix_systemd_folder):
-            self.run_subprocess(['mkdir', '-p', self.config.unix_systemd_folder])
-
-            contain = f'''[Unit]
+        contain = f'''[Unit]
 Description=Defender IRC Service
 
 [Service]
@@ -197,7 +193,19 @@ Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-    '''
+'''
+        # Check if user systemd is available (.config/systemd/user/)
+        if not os.path.exists(self.config.unix_systemd_folder):
+            self.run_subprocess(['mkdir', '-p', self.config.unix_systemd_folder])
+
+            with open(full_service_file_path, 'w+') as servicefile:
+                servicefile.write(contain)
+                servicefile.close()
+                print(f'Service file generated with current configuration')
+                print(f'Running Defender IRC Service ...')
+                self.run_subprocess(self.config.service_cmd_executable)
+
+        else:
             with open(full_service_file_path, 'w+') as servicefile:
                 servicefile.write(contain)
                 servicefile.close()
