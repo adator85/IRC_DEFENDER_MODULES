@@ -49,12 +49,6 @@ class Install:
     def set_configuration(self):
 
         self.skip_install = False
-        # Exclude Windows OS
-        if os.name == 'nt':
-            #print('/!\\ Skip installation /!\\')
-            self.skip_install = True
-            return False
-
         defender_install_folder = os.getcwd()
         venv_folder = '.pyenv'
         unix_user_home_directory = os.path.expanduser("~")
@@ -76,6 +70,12 @@ class Install:
                 venv_pip_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}pip',
                 venv_python_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}python'
             )
+        
+
+        # Exclude Windows OS
+        if os.name == 'nt':
+            #print('/!\\ Skip installation /!\\')
+            self.skip_install = True
 
     def do_install(self) -> bool:
 
