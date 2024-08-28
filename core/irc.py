@@ -3,7 +3,7 @@ from ssl import SSLSocket
 from datetime import datetime, timedelta
 from typing import Union
 from core.loadConf import Config
-from core.Model import User, Admin, Channel
+from core.Model import User, Admin, Channel, Clones
 from core.base import Base
 
 class Irc:
@@ -30,7 +30,7 @@ class Irc:
             0: ['help', 'auth', 'copyright', 'uptime'],
             1: ['load','reload','unload', 'deauth', 'checkversion'],
             2: ['show_modules', 'show_timers', 'show_threads', 'show_channels', 'show_users', 'show_admins'],
-            3: ['quit', 'restart','addaccess','editaccess', 'delaccess','umode']
+            3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
         }
 
         # l'ensemble des commandes.
@@ -43,6 +43,7 @@ class Irc:
         self.User = User(self.Base)
         self.Admin = Admin(self.Base)
         self.Channel = Channel(self.Base)
+        self.Clones = Clones(self.Base)
 
         self.__create_table()
         self.Base.create_thread(func=self.heartbeat, func_args=(self.beat, ))
@@ -1340,16 +1341,6 @@ class Irc:
                     self.thread_check_for_new_version,
                     (fromuser, )
                 )
-
-            case 'umode':
-                try:
-                    # .umode nickname +mode
-                    nickname = str(cmd[1])
-                    umode = str(cmd[2])
-
-                    self.send2socket(f':{dnickname} SVSMODE {nickname} {umode}')
-                except KeyError as ke:
-                    self.Base.logs.error(ke)
 
             case _:
                 pass

@@ -1,20 +1,26 @@
 import socket, ssl, time
 from ssl import SSLSocket
 from core.loadConf import Config
+from core.Model import Clones
 from core.base import Base
 from typing import Union
 
 class Connection:
 
-    def __init__(self, server_port: int, nickname: str, username: str, channels:list[str], ssl:bool = False) -> None:
+    def __init__(self, server_port: int, nickname: str, username: str, channels:list[str], CloneObject: Clones, ssl:bool = False) -> None:
+
         self.Config = Config().ConfigObject
         self.Base = Base(self.Config)
         self.IrcSocket: Union[socket.socket, SSLSocket] = None
-        self.signal: bool = True
         self.nickname = nickname
         self.username = username
         self.channels:list[str] = channels
         self.CHARSET = ['utf-8', 'iso-8859-1']
+        self.Clones = CloneObject
+        self.signal: bool = True
+        for clone in self.Clones.UID_CLONE_DB:
+            if clone.nickname == nickname:
+                self.currentCloneObject = clone
 
         self.create_socket(self.Config.SERVEUR_IP, self.Config.SERVEUR_HOSTNAME, server_port, ssl)
         self.send_connection_information_to_server(self.IrcSocket)
@@ -126,7 +132,6 @@ class Connection:
                         break
 
                     self.parser(data)
-
                 except ssl.SSLEOFError as soe:
                     self.Base.logs.error(f"SSLEOFError __connect_to_irc: {soe} - {data}")
                     self.signal = False
@@ -156,6 +161,7 @@ class Connection:
         try:
             for data in cmd:
                 response = data.decode(self.CHARSET[0]).split()
+                self.signal = self.currentCloneObject.alive
                 # print(response)
 
                 match response[0]:
@@ -174,13 +180,15 @@ class Connection:
                             self.send2socket(f"JOIN {channel}")
                         return None
                     case 'PRIVMSG':
+                        self.Base.logs.debug(response)
+                        self.Base.logs.debug(f'{self.currentCloneObject.nickname} - {self.currentCloneObject.alive}')
                         fullname = str(response[0]).replace(':', '')
                         nickname = fullname.split('!')[0].replace(':','')
                         if nickname == self.Config.SERVICE_NICKNAME:
                             command = str(response[3]).replace(':','')
                             if command == 'KILL':
                                 self.send2socket(f'QUIT :Thanks and goodbye')
-                                self.signal = False
+                                self.signal = self.currentCloneObject.alive
                             if command == 'JOIN':
                                 channel_to_join = str(response[4])
                                 self.send2socket(f"JOIN {channel_to_join}")
@@ -193,7 +201,6 @@ class Connection:
                 response = data.decode(self.CHARSET[1],'replace').split()
         except AssertionError as ae:
             self.Base.logs.error(f"Assertion error : {ae}")
-        pass
 
     def __ssl_context(self) -> ssl.SSLContext:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)

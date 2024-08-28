@@ -35,7 +35,7 @@ class Command():
         # Create module commands (Mandatory)
         self.commands_level = {
             1: ['join', 'part'],
-            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'ban', 'unban','kick', 'kickban']
+            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'ban', 'unban','kick', 'kickban', 'umode']
         }
 
         # Init the module
@@ -481,3 +481,13 @@ class Command():
 
                 except IndexError as ie:
                     self.Logs.error(f'{ie}')
+
+            case 'umode':
+                try:
+                    # .umode nickname +mode
+                    nickname = str(cmd[1])
+                    umode = str(cmd[2])
+
+                    self.send2socket(f':{dnickname} SVSMODE {nickname} {umode}')
+                except KeyError as ke:
+                    self.Base.logs.error(ke)

@@ -27,6 +27,9 @@ class Install:
     def __init__(self) -> None:
 
         self.set_configuration()
+        
+        if self.skip_install:
+            return None
 
         if not self.check_python_version():
             # Tester si c'est la bonne version de python
@@ -44,6 +47,13 @@ class Install:
         return None
 
     def set_configuration(self):
+
+        self.skip_install = False
+        # Exclude Windows OS
+        if os.name == 'nt':
+            #print('/!\\ Skip installation /!\\')
+            self.skip_install = True
+            return False
 
         defender_install_folder = os.getcwd()
         venv_folder = '.pyenv'

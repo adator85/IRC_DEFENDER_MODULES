@@ -272,14 +272,14 @@ class Defender():
             return False
 
     def reputation_insert(self, reputationModel: ReputationModel) -> bool:
-        
+
         response = False
 
         # Check if the user already exist
         for reputation in self.UID_REPUTATION_DB:
             if reputation.uid == reputationModel.uid:
                 return response
-        
+
         self.UID_REPUTATION_DB.append(reputationModel)
         self.Logs.debug(f'Reputation inserted: {reputationModel}')
         response = True
