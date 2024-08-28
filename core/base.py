@@ -1,5 +1,6 @@
-import time, threading, os, random, socket, hashlib, ipaddress, logging, requests, json, re
-from typing import Union
+import time, threading, os, random, socket, hashlib, ipaddress, logging, requests, json, re, ast
+from dataclasses import fields
+from typing import Union, Literal
 from base64 import b64decode
 from datetime import datetime
 from sqlalchemy import create_engine, Engine, Connection, CursorResult
@@ -16,7 +17,7 @@ class Base:
 
         self.Config = Config                                    # Assigner l'objet de configuration
         self.init_log_system()                                  # Demarrer le systeme de log
-        self.check_for_new_version(True)                            # Verifier si une nouvelle version est disponible
+        self.check_for_new_version(True)                        # Verifier si une nouvelle version est disponible
 
         self.running_timers:list[threading.Timer] = []          # Liste des timers en cours
         self.running_threads:list[threading.Thread] = []        # Liste des threads en cours
@@ -47,7 +48,7 @@ class Base:
     def __get_latest_defender_version(self) -> None:
         try:
             self.logs.debug(f'Looking for a new version available on Github')
-            print(f'===> Looking for a new version available on Github')
+            # print(f'===> Looking for a new version available on Github')
             token = ''
             json_url = f'https://raw.githubusercontent.com/adator85/IRC_DEFENDER_MODULES/main/version.json'
             headers = {
@@ -158,7 +159,7 @@ class Base:
                               encoding='UTF-8',
                               format='%(asctime)s - %(levelname)s - %(filename)s - %(lineno)d - %(funcName)s - %(message)s')
 
-        self.logs.info('#################### STARTING INTERCEPTOR HQ ####################')
+        self.logs.info('#################### STARTING DEFENDER ####################')
 
         return None
 
@@ -190,8 +191,8 @@ class Base:
         Returns:
             bool: True si le module existe déja dans la base de données sinon False
         """
-        query = f"SELECT id FROM {self.Config.table_module} WHERE module = :module"
-        mes_donnes = {'module': module_name}
+        query = f"SELECT id FROM {self.Config.table_module} WHERE module_name = :module_name"
+        mes_donnes = {'module_name': module_name}
         results = self.db_execute_query(query, mes_donnes)
 
         if results.fetchall():
@@ -208,10 +209,9 @@ class Base:
 
         if not self.db_isModuleExist(module_name):
             self.logs.debug(f"Le module {module_name} n'existe pas alors ont le créer")
-            insert_cmd_query = f"INSERT INTO {self.Config.table_module} (datetime, user, module) VALUES (:datetime, :user, :module)"
-            mes_donnees = {'datetime': self.get_datetime(), 'user': user_cmd, 'module': module_name}
+            insert_cmd_query = f"INSERT INTO {self.Config.table_module} (datetime, user, module_name, isdefault) VALUES (:datetime, :user, :module_name, :isdefault)"
+            mes_donnees = {'datetime': self.get_datetime(), 'user': user_cmd, 'module_name': module_name, 'isdefault': 0}
             self.db_execute_query(insert_cmd_query, mes_donnees)
-            # self.db_close_session(self.session)
         else:
             self.logs.debug(f"Le module {module_name} existe déja dans la base de données")
 
@@ -223,11 +223,173 @@ class Base:
         Args:
             cmd (str): le module a enregistrer
         """
-        insert_cmd_query = f"DELETE FROM {self.Config.table_module} WHERE module = :module"
-        mes_donnees = {'module': module_name}
+        insert_cmd_query = f"DELETE FROM {self.Config.table_module} WHERE module_name = :module_name"
+        mes_donnees = {'module_name': module_name}
         self.db_execute_query(insert_cmd_query, mes_donnees)
 
         return False
+
+    def db_sync_core_config(self, module_name: str, dataclassObj: object) -> bool:
+        """Sync module local parameters with the database
+        if new module then local param will be stored in the database
+        if old module then db param will be moved to the local dataclassObj
+        if new local param it will be stored in the database
+        if local param was removed then it will also be removed from the database
+
+        Args:
+            module_name (str): The module name ex. mod_defender
+            dataclassObj (object): The Dataclass object
+
+        Returns:
+            bool: _description_
+        """
+        try:
+            response = True
+            current_date = self.get_datetime()
+            core_table = self.Config.table_config
+
+            # Add local parameters to DB
+            for field in fields(dataclassObj):
+                param_key = field.name
+                param_value = str(getattr(dataclassObj, field.name))
+
+                param_to_search = {'module_name': module_name, 'param_key': param_key}
+
+                search_query = f'''SELECT id FROM {core_table} WHERE module_name = :module_name AND param_key = :param_key'''
+                excecute_search_query = self.db_execute_query(search_query, param_to_search)
+                result_search_query = excecute_search_query.fetchone()
+
+                if result_search_query is None:
+                    # If param and module_name doesn't exist create the record
+                    param_to_insert = {'datetime': current_date,'module_name': module_name,
+                                       'param_key': param_key,'param_value': param_value
+                                    }
+
+                    insert_query = f'''INSERT INTO {core_table} (datetime, module_name, param_key, param_value) 
+                                        VALUES (:datetime, :module_name, :param_key, :param_value)
+                                        '''
+                    execution = self.db_execute_query(insert_query, param_to_insert)
+
+                    if execution.rowcount > 0:
+                        self.logs.debug(f'New parameter added to the database: {param_key} --> {param_value}')
+
+            # Delete from DB unused parameter
+            query_select = f"SELECT module_name, param_key, param_value FROM {core_table} WHERE module_name = :module_name"
+            parameter = {'module_name': module_name}
+            execute_query_select = self.db_execute_query(query_select, parameter)
+            result_query_select = execute_query_select.fetchall()
+
+            for result in result_query_select:
+                db_mod_name, db_param_key, db_param_value = result
+                if not hasattr(dataclassObj, db_param_key):
+                    mes_donnees = {'param_key': db_param_key, 'module_name': db_mod_name}
+                    execute_delete = self.db_execute_query(f'DELETE FROM {core_table} WHERE module_name = :module_name and param_key = :param_key', mes_donnees)
+                    row_affected = execute_delete.rowcount
+                    if row_affected > 0:
+                        self.logs.debug(f'A parameter has been deleted from the database: {db_param_key} --> {db_param_value} | Mod: {db_mod_name}')
+
+            # Sync local variable with Database
+            query = f"SELECT param_key, param_value FROM {core_table} WHERE module_name = :module_name"
+            parameter = {'module_name': module_name}
+            response = self.db_execute_query(query, parameter)
+            result = response.fetchall()
+
+            for param, value in result:
+                if type(getattr(dataclassObj, param)) == list:
+                    value = ast.literal_eval(value)
+
+                setattr(dataclassObj, param, self.int_if_possible(value))
+
+            return response
+
+        except AttributeError as attrerr:
+            self.logs.error(f'Attribute Error: {attrerr}')
+        except Exception as err:
+            self.logs.error(err)
+            return False
+
+    def db_update_core_config(self, module_name:str, dataclassObj: object, param_key:str, param_value: str) -> bool:
+
+        core_table = 'core_config'
+        # Check if the param exist
+        if not hasattr(dataclassObj, param_key):
+            self.logs.error(f"Le parametre {param_key} n'existe pas dans la variable global")
+            return False
+
+        mes_donnees = {'module_name': module_name, 'param_key': param_key, 'param_value': param_value}
+        search_param_query = f"SELECT id FROM {core_table} WHERE module_name = :module_name AND param_key = :param_key"
+        result = self.db_execute_query(search_param_query, mes_donnees)
+        isParamExist = result.fetchone()
+
+        if not isParamExist is None:
+            mes_donnees = {'datetime': self.get_datetime(),
+                           'module_name': module_name,
+                           'param_key': param_key,
+                           'param_value': param_value
+                           }
+            query = f'''UPDATE {core_table} SET datetime = :datetime, param_value = :param_value WHERE module_name = :module_name AND param_key = :param_key'''
+            update = self.db_execute_query(query, mes_donnees)
+            updated_rows = update.rowcount
+            if updated_rows > 0:
+                setattr(dataclassObj, param_key, self.int_if_possible(param_value))
+                self.logs.debug(f'Parameter updated : {param_key} - {param_value} | Module: {module_name}')
+
+        self.logs.debug(dataclassObj)
+
+        return True
+
+    def db_query_channel(self, action: Literal['add','del'], module_name: str, channel_name: str) -> bool:
+        """You can add a channel or delete a channel.
+
+        Args:
+            action (Literal[&#39;add&#39;,&#39;del&#39;]): Action on the database
+            module_name (str): The module name (mod_test)
+            channel_name (str): The channel name (With #)
+
+        Returns:
+            bool: True if action done
+        """
+        try:
+            channel_name = channel_name.lower() if self.Is_Channel(channel_name) else None
+            core_table = 'core_channel'
+
+            if not channel_name:
+                self.logs.warn(f'The channel [{channel_name}] is not correct')
+                return False
+
+            match action:
+
+                case 'add':
+                    mes_donnees = {'module_name': module_name, 'channel_name': channel_name}
+                    response = self.db_execute_query(f"SELECT id FROM {core_table} WHERE module_name = :module_name AND channel_name = :channel_name", mes_donnees)
+                    isChannelExist = response.fetchone()
+
+                    if isChannelExist is None:
+                        mes_donnees = {'datetime': self.get_datetime(), 'channel_name': channel_name, 'module_name': module_name}
+                        insert = self.db_execute_query(f"INSERT INTO {core_table} (datetime, channel_name, module_name) VALUES (:datetime, :channel_name, :module_name)", mes_donnees)
+                        if insert.rowcount:
+                            self.logs.debug(f'New channel added: channel={channel_name} / module_name={module_name}')
+                            return True
+                    else:
+                        return False
+                    pass
+
+                case 'del':
+                    mes_donnes = {'channel_name': channel_name, 'module_name': module_name}
+                    response = self.db_execute_query(f"DELETE FROM {core_table} WHERE channel_name = :channel_name AND module_name = :module_name", mes_donnes)
+
+                    if response.rowcount > 0:
+                        self.logs.debug(f'Channel deleted: channel={channel_name} / module: {module_name}')
+                        return True
+                    else:
+                        
+                        return False
+
+                case _:
+                    return False
+
+        except Exception as err:
+            self.logs.error(err)
 
     def db_create_first_admin(self) -> None:
 
@@ -267,6 +429,13 @@ class Base:
             self.logs.error(f'Assertion Error -> {ae}')
 
     def create_thread(self, func:object, func_args: tuple = (), run_once:bool = False) -> None:
+        """Create a new thread and store it into running_threads variable
+
+        Args:
+            func (object): The method/function you want to execute via this thread
+            func_args (tuple, optional): Arguments of the function/method. Defaults to ().
+            run_once (bool, optional): If you want to ensure that this method/function run once. Defaults to False.
+        """
         try:
             func_name = func.__name__
 
@@ -274,10 +443,6 @@ class Base:
                 for thread in self.running_threads:
                     if thread.getName() == func_name:
                         return None
-
-            # if func_name in self.running_threads:
-            #     print(f"HeartBeat is running")
-            #     return None
 
             th = threading.Thread(target=func, args=func_args, name=str(func_name), daemon=True)
             th.start()
@@ -376,14 +541,23 @@ class Base:
 
     def __create_db(self) -> None:
 
-        table_logs = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_log} (
+        table_core_log = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_log} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             datetime TEXT,
             server_msg TEXT
             ) 
         '''
 
-        table_cmds = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_commande} (
+        table_core_config = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_config} (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            datetime TEXT,
+            module_name TEXT,
+            param_key TEXT,
+            param_value TEXT
+            )
+        '''
+
+        table_core_log_command = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_commande} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             datetime TEXT,
             user TEXT,
@@ -391,15 +565,24 @@ class Base:
             )
         '''
 
-        table_modules = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_module} (
+        table_core_module = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_module} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             datetime TEXT,
             user TEXT,
-            module TEXT
+            module_name TEXT,
+            isdefault INTEGER
+            )
+        '''
+        
+        table_core_channel = '''CREATE TABLE IF NOT EXISTS core_channel (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            datetime TEXT,
+            module_name TEXT,
+            channel_name TEXT
             )
         '''
 
-        table_admins = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_admin} (
+        table_core_admin = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_admin} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             createdOn TEXT,
             user TEXT,
@@ -410,10 +593,12 @@ class Base:
             )
         '''
 
-        self.db_execute_query(table_logs)
-        self.db_execute_query(table_cmds)
-        self.db_execute_query(table_modules)
-        self.db_execute_query(table_admins)
+        self.db_execute_query(table_core_log)
+        self.db_execute_query(table_core_log_command)
+        self.db_execute_query(table_core_module)
+        self.db_execute_query(table_core_admin)
+        self.db_execute_query(table_core_channel)
+        self.db_execute_query(table_core_config)
 
         return None
 
@@ -519,7 +704,7 @@ class Base:
         self.periodic_func.clear()
 
     def clean_uid(self, uid:str) -> str:
-        """Clean UID by removing @ / % / + / Owner / and *
+        """Clean UID by removing @ / % / + / ~ / * / :
 
         Args:
             uid (str): The UID to clean
@@ -528,7 +713,7 @@ class Base:
             str: Clean UID without any sign
         """
 
-        pattern = fr'[@|%|\+|~|\*]*'
+        pattern = fr'[:|@|%|\+|~|\*]*'
         parsed_UID = re.sub(pattern, '', uid)
 
         return parsed_UID
@@ -542,11 +727,19 @@ class Base:
         Returns:
             bool: True if the string is a channel / False if this is not a channel
         """
+        try:
+            
+            if channelToCheck is None:
+                return False
 
-        pattern = fr'^#'
-        isChannel = re.findall(pattern, channelToCheck)
+            pattern = fr'^#'
+            isChannel = re.findall(pattern, channelToCheck)
 
-        if not isChannel:
-            return False
-        else:
-            return True
+            if not isChannel:
+                return False
+            else:
+                return True
+        except TypeError as te:
+            self.logs.error(f'TypeError: [{channelToCheck}] - {te}')
+        except Exception as err:
+            self.logs.error(f'TypeError: {err}')

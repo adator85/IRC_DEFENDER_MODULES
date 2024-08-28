@@ -315,7 +315,7 @@ class Channel:
                 for user in newChan.uids:
                     record.uids.append(user)
 
-                # Supprimer les doublons 
+                # Supprimer les doublons
                 del_duplicates = list(set(record.uids))
                 record.uids = del_duplicates
                 self.log.debug(f'Updating a new UID to the channel {record}')
@@ -402,3 +402,97 @@ class Channel:
         self.log.debug(f'Search {name} -- result = {Channel}')
 
         return Channel
+
+class Clones:
+
+    @dataclass
+    class CloneModel:
+        alive: bool
+        nickname: str
+        username: str
+
+    UID_CLONE_DB: list[CloneModel] = []
+
+    def __init__(self, Base: Base) -> None:
+        self.log = Base.logs
+
+    def insert(self, newCloneObject: CloneModel) -> bool:
+        """Create new Clone object
+
+        Args:
+            newCloneObject (CloneModel): New CloneModel object
+
+        Returns:
+            bool: True if inserted
+        """
+        result = False
+        exist = False
+
+        for record in self.UID_CLONE_DB:
+            if record.nickname == newCloneObject.nickname:
+                # If the user exist then return False and do not go further
+                exist = True
+                self.log.debug(f'{record.nickname} already exist')
+                return result
+
+        if not exist:
+            self.UID_CLONE_DB.append(newCloneObject)
+            result = True
+            self.log.debug(f'New Clone Object Created: ({newCloneObject})')
+
+        if not result:
+            self.log.critical(f'The Clone Object was not inserted {newCloneObject}')
+
+        return result
+
+    def delete(self, nickname: str) -> bool:
+        """Delete the Clone Object starting from the nickname
+
+        Args:
+            nickname (str): nickname of the clone
+
+        Returns:
+            bool: True if deleted
+        """
+        result = False
+
+        for record in self.UID_CLONE_DB:
+            if record.nickname == nickname:
+                # If the user exist then remove and return True and do not go further
+                self.UID_CLONE_DB.remove(record)
+                result = True
+                self.log.debug(f'The clone ({record.nickname}) has been deleted')
+                return result
+
+        if not result:
+            self.log.critical(f'The UID {nickname} was not deleted')
+
+        return result
+
+    def exists(self, nickname: str) -> bool:
+        """Check if the nickname exist
+
+        Args:
+            nickname (str): Nickname of the clone
+
+        Returns:
+            bool: True if the nickname exist
+        """
+        response = False
+
+        for cloneObject in self.UID_CLONE_DB:
+            if cloneObject.nickname == nickname:
+                response = True
+
+        return response
+
+    def kill(self, nickname:str) -> bool:
+
+        response = False
+
+        for cloneObject in self.UID_CLONE_DB:
+            if cloneObject.nickname == nickname:
+                cloneObject.alive = False # Kill the clone
+                response = True
+
+        return response

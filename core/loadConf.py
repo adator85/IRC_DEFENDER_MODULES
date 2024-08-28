@@ -1,4 +1,4 @@
-import json
+import json, sys
 from os import sep
 from typing import Union
 from dataclasses import dataclass, field
@@ -52,6 +52,8 @@ class ConfigDataModel:
     table_commande: str
     table_log: str
     table_module: str
+    table_config: str
+    table_channel: str
 
     current_version: str
     latest_version: str
@@ -70,16 +72,21 @@ class Config:
         return None
 
     def __load_json_service_configuration(self):
+        try:
+            conf_filename = f'core{sep}configuration.json'
+            with open(conf_filename, 'r') as configuration_data:
+                configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
 
-        conf_filename = f'core{sep}configuration.json'
-        with open(conf_filename, 'r') as configuration_data:
-            configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
+            for key, value in configuration['CONFIG_COLOR'].items():
+                configuration['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
 
-        for key, value in configuration['CONFIG_COLOR'].items():
-            configuration['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
-        
-        return configuration
-    
+            return configuration
+
+        except FileNotFoundError as fe:
+            print(f'FileNotFound: {fe}')
+            print('Configuration file not found please create core/configuration.json')
+            sys.exit(0)
+
     def __load_service_configuration(self) -> ConfigDataModel:
         import_config = self.__load_json_service_configuration()
 
@@ -113,10 +120,12 @@ class Config:
             GLINE_DURATION=import_config["GLINE_DURATION"],
             DEBUG_LEVEL=import_config["DEBUG_LEVEL"],
             CONFIG_COLOR=import_config["CONFIG_COLOR"],
-            table_admin='sys_admins',
-            table_commande='sys_commandes',
-            table_log='sys_logs',
-            table_module='sys_modules',
+            table_admin='core_admin',
+            table_commande='core_command',
+            table_log='core_log',
+            table_module='core_module',
+            table_config='core_config',
+            table_channel='core_channel',
             current_version='',
             latest_version='',
             db_name='defender',
