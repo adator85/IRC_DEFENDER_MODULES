@@ -13,6 +13,7 @@ class Install:
         unix_systemd_folder: str
         service_file_name: str
         service_cmd_executable: list
+        service_cmd_daemon_reload: list
         defender_main_executable: str
         python_min_version: str
         python_current_version_tuple: tuple[str, str, str]
@@ -59,6 +60,7 @@ class Install:
                 unix_systemd_folder=unix_systemd_folder,
                 service_file_name='defender.service',
                 service_cmd_executable=['systemctl', '--user', 'start', 'defender'],
+                service_cmd_daemon_reload=['systemctl', '--user', 'daemon-reload'],
                 defender_main_executable=defender_main_executable,
                 python_min_version='3.10',
                 python_current_version_tuple=python_version_tuple(),
@@ -214,6 +216,7 @@ WantedBy=default.target
                 servicefile.close()
                 print(f'Service file generated with current configuration')
                 print(f'Running Defender IRC Service ...')
+                self.run_subprocess(self.config.service_cmd_daemon_reload)
                 self.run_subprocess(self.config.service_cmd_executable)
 
         else:
@@ -222,13 +225,14 @@ WantedBy=default.target
                 servicefile.close()
                 print(f'Service file generated with current configuration')
                 print(f'Running Defender IRC Service ...')
+                self.run_subprocess(self.config.service_cmd_daemon_reload)
                 self.run_subprocess(self.config.service_cmd_executable)
 
     def print_final_message(self) -> None:
 
         print(f"#"*24)
         print("Installation complete ...")
-        print("You must change environment using the command below")
-        print(f"source {self.config.defender_install_folder}{os.sep}{self.config.venv_folder}{os.sep}bin{os.sep}activate")
+        print("If the configuration is correct, then you must see your service connected to your irc server")
+        print(f"If any issue, you can see the log file for debug {self.config.defender_install_folder}{os.sep}logs{os.sep}defender.log")
         print(f"#"*24)
         exit(1)
