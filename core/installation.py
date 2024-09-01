@@ -1,6 +1,4 @@
-from importlib.util import find_spec
 from dataclasses import dataclass
-from pathlib import Path
 from subprocess import check_call, run, CalledProcessError, PIPE
 from platform import python_version, python_version_tuple
 from sys import exit
@@ -10,9 +8,11 @@ class Install:
 
     @dataclass
     class CoreConfig:
+        install_log_file: str
         unix_systemd_folder: str
         service_file_name: str
         service_cmd_executable: list
+        service_cmd_daemon_reload: list
         defender_main_executable: str
         python_min_version: str
         python_current_version_tuple: tuple[str, str, str]
@@ -27,14 +27,17 @@ class Install:
     def __init__(self) -> None:
 
         self.set_configuration()
-        
-        if self.skip_install:
-            return None
 
         if not self.check_python_version():
             # Tester si c'est la bonne version de python
             exit("Python Version Error")
         else:
+
+            if self.skip_install:
+                return None
+
+            print(f'Configuration loaded : {self.config}')
+
             # Sinon tester les dependances python et les installer avec pip
             if self.do_install():
 
@@ -56,9 +59,11 @@ class Install:
         defender_main_executable = os.path.join(defender_install_folder, 'main.py')
 
         self.config = self.CoreConfig(
+                install_log_file='install.log',
                 unix_systemd_folder=unix_systemd_folder,
                 service_file_name='defender.service',
                 service_cmd_executable=['systemctl', '--user', 'start', 'defender'],
+                service_cmd_daemon_reload=['systemctl', '--user', 'daemon-reload'],
                 defender_main_executable=defender_main_executable,
                 python_min_version='3.10',
                 python_current_version_tuple=python_version_tuple(),
@@ -70,12 +75,24 @@ class Install:
                 venv_pip_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}pip',
                 venv_python_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}python'
             )
-        
 
         # Exclude Windows OS
         if os.name == 'nt':
             #print('/!\\ Skip installation /!\\')
             self.skip_install = True
+        else:
+            if self.is_root():
+                self.skip_install = True
+
+    def is_root(self) -> bool:
+
+        if os.geteuid() != 0:
+            print('User without privileges ==> PASS')
+            return False
+        elif os.geteuid() == 0:
+            print('/!\\ Do not use root to install Defender /!\\')
+            exit("Do not use root to install Defender")
+            return True
 
     def do_install(self) -> bool:
 
@@ -93,12 +110,12 @@ class Install:
 
     def run_subprocess(self, command:list) -> None:
 
-        print(command)
+        print(f'> {command}')
         try:
             check_call(command)
-            print("La commande s'est terminée avec succès.")
+            print("The command completed successfully.")
         except CalledProcessError as e:
-            print(f"La commande a échoué avec le code de retour :{e.returncode}")
+            print(f"The command failed with the return code: {e.returncode}")
             print(f"Try to install dependencies ...")
             exit(5)
 
@@ -123,7 +140,7 @@ class Install:
             print(f"## Your python version must be greather than or equal to {self.config.python_current_version} ##")
             return False
 
-        print(f"===> Version of python : {self.config.python_current_version} ==> OK")
+        print(f"> Version of python : {self.config.python_current_version} ==> OK")
 
         return True
 
@@ -133,7 +150,8 @@ class Install:
             # Run a command in the virtual environment's Python to check if the package is installed
             run([self.config.venv_python_executable, '-c', f'import {package_name}'], check=True, stdout=PIPE, stderr=PIPE)
             return True
-        except CalledProcessError:
+        except CalledProcessError as cpe:
+            print(cpe)
             return False
 
     def install_dependencies(self) -> None:
@@ -162,7 +180,7 @@ class Install:
         print("===> Verifier si pip est a jour")
         self.run_subprocess([self.config.venv_python_executable, '-m', 'pip', 'install', '--upgrade', 'pip'])
 
-        if find_spec('greenlet') is None:
+        if not self.check_package('greenlet'):
             self.run_subprocess([self.config.venv_pip_executable, 'install', '--only-binary', ':all:', 'greenlet'])
             print('====> Module Greenlet installé')
 
@@ -180,6 +198,7 @@ class Install:
 
         if os.path.exists(full_service_file_path):
             print(f'/!\\ Service file already exist /!\\')
+            self.run_subprocess(self.config.service_cmd_executable)
             return None
 
         contain = f'''[Unit]
@@ -192,7 +211,7 @@ SyslogIdentifier=Defender
 Restart=on-failure
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 '''
         # Check if user systemd is available (.config/systemd/user/)
         if not os.path.exists(self.config.unix_systemd_folder):
@@ -203,6 +222,7 @@ WantedBy=multi-user.target
                 servicefile.close()
                 print(f'Service file generated with current configuration')
                 print(f'Running Defender IRC Service ...')
+                self.run_subprocess(self.config.service_cmd_daemon_reload)
                 self.run_subprocess(self.config.service_cmd_executable)
 
         else:
@@ -211,13 +231,14 @@ WantedBy=multi-user.target
                 servicefile.close()
                 print(f'Service file generated with current configuration')
                 print(f'Running Defender IRC Service ...')
+                self.run_subprocess(self.config.service_cmd_daemon_reload)
                 self.run_subprocess(self.config.service_cmd_executable)
 
     def print_final_message(self) -> None:
 
         print(f"#"*24)
         print("Installation complete ...")
-        print("You must change environment using the command below")
-        print(f"source {self.config.defender_install_folder}{os.sep}{self.config.venv_folder}{os.sep}bin{os.sep}activate")
+        print("If the configuration is correct, then you must see your service connected to your irc server")
+        print(f"If any issue, you can see the log file for debug {self.config.defender_install_folder}{os.sep}logs{os.sep}defender.log")
         print(f"#"*24)
         exit(1)

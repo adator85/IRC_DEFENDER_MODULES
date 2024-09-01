@@ -1,7 +1,7 @@
 import ssl, re, importlib, sys, time, threading, socket
 from ssl import SSLSocket
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Union, Literal
 from core.loadConf import Config
 from core.Model import User, Admin, Channel, Clones
 from core.base import Base
@@ -21,6 +21,8 @@ class Irc:
         self.INIT = 1                                       # Variable d'intialisation | 1 -> indique si le programme est en cours d'initialisation
         self.RESTART = 0                                    # Variable pour le redemarrage du bot | 0 -> indique que le programme n'es pas en cours de redemarrage
         self.CHARSET = ['utf-8', 'iso-8859-1']              # Charset utiliser pour décoder/encoder les messages
+        """0: utf-8 | 1: iso-8859-1"""
+
         self.SSL_VERSION = None                             # Version SSL
 
         self.Config = Config().ConfigObject
@@ -200,19 +202,22 @@ class Irc:
 
             version = self.Config.current_version
             unixtime = self.Base.get_unixtime()
+            charset = self.CHARSET[0]
 
             # Envoyer un message d'identification
-            writer.send(f":{sid} PASS :{password}\r\n".encode('utf-8'))
-            writer.send(f":{sid} PROTOCTL SID NOQUIT NICKv2 SJOIN SJ3 NICKIP TKLEXT2 NEXTBANS CLK EXTSWHOIS MLOCK MTAGS\r\n".encode('utf-8'))
-            # writer.send(f":{sid} PROTOCTL NICKv2 VHP UMODE2 NICKIP SJOIN SJOIN2 SJ3 NOQUIT TKLEXT MLOCK SID MTAGS\r\n".encode('utf-8'))
-            writer.send(f":{sid} PROTOCTL EAUTH={link},,,{service_name}-v{version}\r\n".encode('utf-8'))
-            writer.send(f":{sid} PROTOCTL SID={sid}\r\n".encode('utf-8'))
-            writer.send(f":{sid} SERVER {link} 1 :{info}\r\n".encode('utf-8'))
-            writer.send(f":{sid} {nickname} :Reserved for services\r\n".encode('utf-8'))
-            writer.send(f":{sid} UID {nickname} 1 {unixtime} {username} {host} {service_id} * {smodes} * * * :{realname}\r\n".encode('utf-8'))
-            writer.send(f":{sid} SJOIN {unixtime} {chan} + :{service_id}\r\n".encode('utf-8'))
-            writer.send(f":{sid} MODE {chan} +{cmodes}\r\n".encode('utf-8'))
-            writer.send(f":{sid} SAMODE {chan} +{umodes} {nickname}\r\n".encode('utf-8'))
+            writer.send(f":{sid} PASS :{password}\r\n".encode(charset))
+            writer.send(f":{sid} PROTOCTL SID NOQUIT NICKv2 SJOIN SJ3 NICKIP TKLEXT2 NEXTBANS CLK EXTSWHOIS MLOCK MTAGS\r\n".encode(charset))
+            # writer.send(f":{sid} PROTOCTL NICKv2 VHP UMODE2 NICKIP SJOIN SJOIN2 SJ3 NOQUIT TKLEXT MLOCK SID MTAGS\r\n".encode(charset))
+            writer.send(f":{sid} PROTOCTL EAUTH={link},,,{service_name}-v{version}\r\n".encode(charset))
+            writer.send(f":{sid} PROTOCTL SID={sid}\r\n".encode(charset))
+            writer.send(f":{sid} SERVER {link} 1 :{info}\r\n".encode(charset))
+            writer.send(f":{sid} {nickname} :Reserved for services\r\n".encode(charset))
+            writer.send(f":{sid} UID {nickname} 1 {unixtime} {username} {host} {service_id} * {smodes} * * * :{realname}\r\n".encode(charset))
+            writer.send(f":{sid} SJOIN {unixtime} {chan} + :{service_id}\r\n".encode(charset))
+            writer.send(f":{sid} TKL + Q * {nickname} {host} 0 {unixtime} :Reserved for services\r\n".encode(charset))
+
+            writer.send(f":{service_id} MODE {chan} +{cmodes}\r\n".encode(charset))
+            writer.send(f":{service_id} MODE {chan} +{umodes} {service_id}\r\n".encode(charset))
 
             self.Base.logs.debug('Link information sent to the server')
 
@@ -221,9 +226,9 @@ class Irc:
             self.Base.logs.critical(f'{ae}')
 
     def __join_saved_channels(self) -> None:
-        
-        core_table = 'core_channel'
-        
+        """## Joining saved channels"""
+        core_table = self.Config.table_channel
+
         query = f'''SELECT distinct channel_name FROM {core_table}'''
         exec_query = self.Base.db_execute_query(query)
         result_query = exec_query.fetchall()
@@ -686,7 +691,10 @@ class Irc:
                             else:
                                 version = f'{current_version}'
 
-                            self.send2socket(f"JOIN {self.Config.SERVICE_CHANLOG}")
+                            # self.send2socket(f":{self.Config.SERVICE_NICKNAME} SVSJOIN {self.Config.SERVICE_NICKNAME} {self.Config.SERVICE_CHANLOG}")
+                            # self.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.SERVICE_CHANLOG} +o {self.Config.SERVICE_NICKNAME}")
+                            # self.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.SERVICE_CHANLOG} +{self.Config.SERVICE_CMODES}")
+
                             print(f"################### DEFENDER ###################")
                             print(f"#               SERVICE CONNECTE                ")
                             print(f"# SERVEUR  :    {self.Config.SERVEUR_IP}        ")
@@ -775,8 +783,8 @@ class Irc:
                     for i in range(start_boucle, len(cmd)):
                         parsed_UID = str(cmd[i])
                         # pattern = fr'[:|@|%|\+|~|\*]*'
-                        pattern = fr':'
-                        parsed_UID = re.sub(pattern, '', parsed_UID)
+                        # pattern = fr':'
+                        # parsed_UID = re.sub(pattern, '', parsed_UID)
                         clean_uid = self.Base.clean_uid(parsed_UID)
                         if len(clean_uid) == 9:
                             list_users.append(parsed_UID)

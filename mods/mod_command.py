@@ -35,7 +35,7 @@ class Command():
         # Create module commands (Mandatory)
         self.commands_level = {
             1: ['join', 'part'],
-            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'ban', 'unban','kick', 'kickban', 'umode']
+            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'deopall', 'devoiceall', 'voiceall', 'ban', 'unban','kick', 'kickban', 'umode']
         }
 
         # Init the module
@@ -97,7 +97,7 @@ class Command():
         """
         try:
             # Build the default configuration model (Mandatory)
-            self.ModConfig = self.ModConfModel(param_exemple1='param value 1', param_exemple2=1)
+            self.ModConfig = self.ModConfModel()
 
             # Sync the configuration with core configuration (Mandatory)
             self.Base.db_sync_core_config(self.module_name, self.ModConfig)
@@ -171,6 +171,26 @@ class Command():
         fromchannel = channel
 
         match command:
+
+            case 'deopall':
+                try:
+                    self.Irc.send2socket(f":{service_id} SVSMODE {fromchannel} -o")
+
+                except IndexError as e:
+                    self.Logs.warning(f'_hcmd OP: {str(e)}')
+
+            case 'devoiceall':
+                try:
+                    self.Irc.send2socket(f":{service_id} SVSMODE {fromchannel} -v")
+
+                except IndexError as e:
+                    self.Logs.warning(f'_hcmd OP: {str(e)}')
+
+            case 'voiceall':
+                chan_info = self.Channel.get_Channel(fromchannel)
+                for uid in chan_info.uids:
+                    self.Irc.send2socket(f":{service_id} MODE {fromchannel} +v {self.User.get_nickname(self.Base.clean_uid(uid))}")
+
 
             case 'op':
                 # /mode #channel +o user
