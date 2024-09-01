@@ -30,15 +30,16 @@ class Install:
 
         self.set_configuration()
 
-        if self.skip_install:
-            return None
-
-        self.Logs.debug(f'Configuration loaded : {self.config}')
-
         if not self.check_python_version():
             # Tester si c'est la bonne version de python
             exit("Python Version Error")
         else:
+            
+            if self.skip_install:
+                return None
+
+            self.Logs.debug(f'Configuration loaded : {self.config}')
+
             # Sinon tester les dependances python et les installer avec pip
             if self.do_install():
 
