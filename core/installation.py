@@ -198,6 +198,7 @@ class Install:
 
         if os.path.exists(full_service_file_path):
             print(f'/!\\ Service file already exist /!\\')
+            self.run_subprocess(self.config.service_cmd_executable)
             return None
 
         contain = f'''[Unit]
