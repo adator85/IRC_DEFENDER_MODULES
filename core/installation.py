@@ -76,8 +76,6 @@ class Install:
                 venv_python_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}python'
             )
 
-        self.init_log_system()
-
         # Exclude Windows OS
         if os.name == 'nt':
             #print('/!\\ Skip installation /!\\')
