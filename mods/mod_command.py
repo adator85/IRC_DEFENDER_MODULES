@@ -97,7 +97,7 @@ class Command():
         """
         try:
             # Build the default configuration model (Mandatory)
-            self.ModConfig = self.ModConfModel(param_exemple1='param value 1', param_exemple2=1)
+            self.ModConfig = self.ModConfModel()
 
             # Sync the configuration with core configuration (Mandatory)
             self.Base.db_sync_core_config(self.module_name, self.ModConfig)
