@@ -92,7 +92,7 @@ class Install:
         # Init logs object
         self.Logs = logging
         self.Logs.basicConfig(level=logging.DEBUG,
-                              filename=self.config.log_file,
+                              filename=self.config.install_log_file,
                               encoding='UTF-8',
                               format='%(asctime)s - %(levelname)s - %(filename)s - %(lineno)d - %(funcName)s - %(message)s')
 
