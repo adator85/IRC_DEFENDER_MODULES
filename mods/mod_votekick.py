@@ -48,8 +48,7 @@ class Votekick():
 
         # Créer les nouvelles commandes du module
         self.commands_level = {
-            0: ['vote'],
-            1: ['activate', 'deactivate', 'submit', 'vote_stat', 'vote_verdict', 'vote_cancel']
+            0: ['vote']
         }
 
         # Init the module
@@ -60,6 +59,7 @@ class Votekick():
 
     def __init_module(self) -> None:
 
+        # Add admin object to retrieve admin users
         self.Admin = self.Irc.Admin
 
         self.__set_commands(self.commands_level)
@@ -264,6 +264,17 @@ class Votekick():
         match command:
             case 'vote':
                 option = str(cmd[1]).lower()
+
+                if len(command) == 1:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote activate #channel')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote deactivate #channel')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote +')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote -')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote cancel')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote status')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote submit nickname')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote verdict')
+
                 match option:
 
                     case 'activate':
@@ -472,3 +483,13 @@ class Votekick():
                             self.Logs.error(f'{err}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option}')
+
+                    case _:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote activate #channel')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote deactivate #channel')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote +')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote -')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote cancel')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote status')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote submit nickname')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote verdict')

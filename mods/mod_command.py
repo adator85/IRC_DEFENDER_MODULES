@@ -178,6 +178,8 @@ class Command():
 
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd OP: {str(e)}')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'devoiceall':
                 try:
@@ -185,40 +187,52 @@ class Command():
 
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd OP: {str(e)}')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'voiceall':
-                chan_info = self.Channel.get_Channel(fromchannel)
-                set_mode = 'v'
-                mode:str = ''
-                users:str = ''
-                uids_split = [chan_info.uids[i:i + 6] for i in range(0, len(chan_info.uids), 6)]
+                try:
+                    chan_info = self.Channel.get_Channel(fromchannel)
+                    set_mode = 'v'
+                    mode:str = ''
+                    users:str = ''
+                    uids_split = [chan_info.uids[i:i + 6] for i in range(0, len(chan_info.uids), 6)]
 
-                self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{set_mode} {dnickname}")
-                for uid in uids_split:
-                    for i in range(0, len(uid)):
-                        mode += set_mode
-                        users += f'{self.User.get_nickname(self.Base.clean_uid(uid[i]))} '
-                        if i == len(uid) - 1:
-                            self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{mode} {users}")
-                            mode = ''
-                            users = ''
+                    self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{set_mode} {dnickname}")
+                    for uid in uids_split:
+                        for i in range(0, len(uid)):
+                            mode += set_mode
+                            users += f'{self.User.get_nickname(self.Base.clean_uid(uid[i]))} '
+                            if i == len(uid) - 1:
+                                self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{mode} {users}")
+                                mode = ''
+                                users = ''
+                except IndexError as e:
+                    self.Logs.warning(f'_hcmd OP: {str(e)}')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'opall':
-                chan_info = self.Channel.get_Channel(fromchannel)
-                set_mode = 'o'
-                mode:str = ''
-                users:str = ''
-                uids_split = [chan_info.uids[i:i + 6] for i in range(0, len(chan_info.uids), 6)]
+                try:
+                    chan_info = self.Channel.get_Channel(fromchannel)
+                    set_mode = 'o'
+                    mode:str = ''
+                    users:str = ''
+                    uids_split = [chan_info.uids[i:i + 6] for i in range(0, len(chan_info.uids), 6)]
 
-                self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{set_mode} {dnickname}")
-                for uid in uids_split:
-                    for i in range(0, len(uid)):
-                        mode += set_mode
-                        users += f'{self.User.get_nickname(self.Base.clean_uid(uid[i]))} '
-                        if i == len(uid) - 1:
-                            self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{mode} {users}")
-                            mode = ''
-                            users = ''
+                    self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{set_mode} {dnickname}")
+                    for uid in uids_split:
+                        for i in range(0, len(uid)):
+                            mode += set_mode
+                            users += f'{self.User.get_nickname(self.Base.clean_uid(uid[i]))} '
+                            if i == len(uid) - 1:
+                                self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{mode} {users}")
+                                mode = ''
+                                users = ''
+                except IndexError as e:
+                    self.Logs.warning(f'_hcmd OP: {str(e)}')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'op':
                 # /mode #channel +o user
@@ -246,6 +260,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd OP: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} op [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'deop':
                 # /mode #channel -o user
@@ -271,6 +287,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd DEOP: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} deop [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'owner':
                 # /mode #channel +q user
@@ -296,6 +314,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd OWNER: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} owner [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'deowner':
                 # /mode #channel -q user
@@ -321,6 +341,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd DEOWNER: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} deowner [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'halfop':
                 # /mode #channel +h user
@@ -346,6 +368,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd halfop: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} halfop [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'dehalfop':
                 # /mode #channel -h user
@@ -371,6 +395,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd DEHALFOP: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} dehalfop [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'voice':
                 # /mode #channel +v user
@@ -396,6 +422,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd VOICE: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} voice [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'devoice':
                 # /mode #channel -v user
@@ -421,6 +449,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd DEVOICE: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} devoice [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'ban':
                 # .ban #channel nickname
@@ -437,6 +467,8 @@ class Command():
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd BAN: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} ban [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'unban':
                 # .unban #channel nickname
@@ -449,9 +481,12 @@ class Command():
 
                     self.Irc.send2socket(f":{service_id} MODE {sentchannel} -b {nickname}!*@*")
                     self.Logs.debug(f'{fromuser} has unbanned {nickname} from {sentchannel}')
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd UNBAN: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} unban [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'kick':
                 # .kick #channel nickname reason
@@ -470,9 +505,12 @@ class Command():
 
                     self.Irc.send2socket(f":{service_id} KICK {sentchannel} {nickname} {final_reason}")
                     self.Logs.debug(f'{fromuser} has kicked {nickname} from {sentchannel} : {final_reason}')
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd KICK: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} kick [#SALON] [NICKNAME] [REASON]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'kickban':
                 # .kickban #channel nickname reason
@@ -492,9 +530,12 @@ class Command():
                     self.Irc.send2socket(f":{service_id} KICK {sentchannel} {nickname} {final_reason}")
                     self.Irc.send2socket(f":{service_id} MODE {sentchannel} +b {nickname}!*@*")
                     self.Logs.debug(f'{fromuser} has kicked and banned {nickname} from {sentchannel} : {final_reason}')
+
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd KICKBAN: {str(e)}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} kickban [#SALON] [NICKNAME] [REASON]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'join':
 
@@ -510,6 +551,8 @@ class Command():
 
                 except IndexError as ie:
                     self.Logs.error(f'{ie}')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'part':
 
@@ -529,6 +572,8 @@ class Command():
 
                 except IndexError as ie:
                     self.Logs.error(f'{ie}')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
             case 'umode':
                 try:
@@ -539,3 +584,5 @@ class Command():
                     self.send2socket(f':{dnickname} SVSMODE {nickname} {umode}')
                 except KeyError as ke:
                     self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')

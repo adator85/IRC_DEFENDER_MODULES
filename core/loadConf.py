@@ -94,7 +94,7 @@ class ConfigDataModel:
     GLINE_DURATION: str
     """Gline duration"""
 
-    DEBUG_LEVEL:Literal[10, 20, 30, 40, 50]                                         # Le niveau des logs DEBUG 10 | INFO 20 | WARNING 30 | ERROR 40 | CRITICAL 50
+    DEBUG_LEVEL:Literal[10, 20, 30, 40, 50]
     """Logs level: DEBUG 10 | INFO 20 | WARNING 30 | ERROR 40 | CRITICAL 50"""
 
     CONFIG_COLOR: dict[str, str]

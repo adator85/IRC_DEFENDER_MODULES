@@ -133,11 +133,11 @@ class Install:
         min_major, min_minor = tuple((python_required_version[0], python_required_version[1]))
 
         if int(sys_major) < int(min_major):
-            print(f"## Your python version must be greather than or equal to {self.config.python_current_version} ##")
+            print(f"## Your python version must be greather than or equal to {self.config.python_min_version} ##")
             return False
 
         elif (int(sys_major) <= int(min_major)) and (int(sys_minor) < int(min_minor)):
-            print(f"## Your python version must be greather than or equal to {self.config.python_current_version} ##")
+            print(f"## Your python version must be greather than or equal to {self.config.python_min_version} ##")
             return False
 
         print(f"> Version of python : {self.config.python_current_version} ==> OK")
