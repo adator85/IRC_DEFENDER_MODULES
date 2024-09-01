@@ -30,8 +30,6 @@ class Install:
 
         self.set_configuration()
 
-        self.init_log_system()
-
         if self.skip_install:
             return None
 
@@ -78,6 +76,8 @@ class Install:
                 venv_pip_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}pip',
                 venv_python_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}python'
             )
+
+        self.init_log_system()
 
         # Exclude Windows OS
         if os.name == 'nt':
