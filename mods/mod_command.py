@@ -35,7 +35,7 @@ class Command():
         # Create module commands (Mandatory)
         self.commands_level = {
             1: ['join', 'part'],
-            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'deopall', 'devoiceall', 'voiceall', 'ban', 'unban','kick', 'kickban', 'umode']
+            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'opall', 'deopall', 'devoiceall', 'voiceall', 'ban', 'unban','kick', 'kickban', 'umode']
         }
 
         # Init the module
@@ -188,9 +188,37 @@ class Command():
 
             case 'voiceall':
                 chan_info = self.Channel.get_Channel(fromchannel)
-                for uid in chan_info.uids:
-                    self.Irc.send2socket(f":{service_id} MODE {fromchannel} +v {self.User.get_nickname(self.Base.clean_uid(uid))}")
+                set_mode = 'v'
+                mode:str = ''
+                users:str = ''
+                uids_split = [chan_info.uids[i:i + 6] for i in range(0, len(chan_info.uids), 6)]
 
+                self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{set_mode} {dnickname}")
+                for uid in uids_split:
+                    for i in range(0, len(uid)):
+                        mode += set_mode
+                        users += f'{self.User.get_nickname(self.Base.clean_uid(uid[i]))} '
+                        if i == len(uid) - 1:
+                            self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{mode} {users}")
+                            mode = ''
+                            users = ''
+
+            case 'opall':
+                chan_info = self.Channel.get_Channel(fromchannel)
+                set_mode = 'o'
+                mode:str = ''
+                users:str = ''
+                uids_split = [chan_info.uids[i:i + 6] for i in range(0, len(chan_info.uids), 6)]
+
+                self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{set_mode} {dnickname}")
+                for uid in uids_split:
+                    for i in range(0, len(uid)):
+                        mode += set_mode
+                        users += f'{self.User.get_nickname(self.Base.clean_uid(uid[i]))} '
+                        if i == len(uid) - 1:
+                            self.Irc.send2socket(f":{service_id} MODE {fromchannel} +{mode} {users}")
+                            mode = ''
+                            users = ''
 
             case 'op':
                 # /mode #channel +o user
