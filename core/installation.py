@@ -34,7 +34,7 @@ class Install:
             # Tester si c'est la bonne version de python
             exit("Python Version Error")
         else:
-            
+
             if self.skip_install:
                 return None
 
