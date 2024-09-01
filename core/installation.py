@@ -1,6 +1,4 @@
-from importlib.util import find_spec
 from dataclasses import dataclass
-from pathlib import Path
 from subprocess import check_call, run, CalledProcessError, PIPE
 from platform import python_version, python_version_tuple
 from sys import exit
@@ -207,7 +205,7 @@ class Install:
         print("===> Verifier si pip est a jour")
         self.run_subprocess([self.config.venv_python_executable, '-m', 'pip', 'install', '--upgrade', 'pip'])
 
-        if find_spec('greenlet') is None:
+        if not self.check_package('greenlet'):
             self.run_subprocess([self.config.venv_pip_executable, 'install', '--only-binary', ':all:', 'greenlet'])
             print('====> Module Greenlet installé')
 
