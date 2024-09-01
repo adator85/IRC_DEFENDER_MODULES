@@ -9,10 +9,6 @@ from core.loadConf import ConfigDataModel
 
 class Base:
 
-    # CORE_DB_PATH = 'core' + os.sep + 'db' + os.sep              # Le dossier bases de données core
-    # MODS_DB_PATH = 'mods' + os.sep + 'db' + os.sep              # Le dossier bases de données des modules
-    # PYTHON_MIN_VERSION = '3.10'                                 # Version min de python
-
     def __init__(self, Config: ConfigDataModel) -> None:
 
         self.Config = Config                                    # Assigner l'objet de configuration
@@ -749,4 +745,4 @@ class Base:
         except TypeError as te:
             self.logs.error(f'TypeError: [{channelToCheck}] - {te}')
         except Exception as err:
-            self.logs.error(f'TypeError: {err}')
+            self.logs.error(f'Error Not defined: {err}')

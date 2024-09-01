@@ -60,6 +60,7 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
         SERVEUR_PASSWORD: Mot de passe d'enregistrement du service sur le serveur IRC.
         SERVEUR_ID: Identifiant unique du service.
         SERVEUR_SSL: Active la connexion SSL sécurisée au serveur IRC (true/false).
+
     SERVICE (Service)
         SERVICE_NAME: Nom du service IRC.
         SERVICE_NICKNAME: Surnom utilisé par le service sur le serveur IRC.
@@ -72,35 +73,46 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
         SERVICE_CMODES: Modes de canal appliqués aux canaux rejoints par le service.
         SERVICE_UMODES: Modes utilisateur appliqués au service.
         SERVICE_PREFIX: Caractère utilisé comme préfixe des commandes du service.
+
     COMPTE (Compte)
         OWNER: Nom d'utilisateur possédant les droits d'administration du service.
         PASSWORD: Mot de passe de l'administrateur du service.
+
     CANAUX (Canaux)
         SALON_JAIL: Canal utilisé comme prison pour les utilisateurs sanctionnés.
         SALON_JAIL_MODES: Modes appliqués au canal de prison.
         SALON_LIBERER: Canal utilisé pour la libération des utilisateurs sanctionnés.
+
     API (API)
         API_TIMEOUT: Durée maximale d'attente d'une réponse de l'API en secondes.
+
     SCANNER (Scanner)
         PORTS_TO_SCAN: Liste des ports à scanner pour détecter des serveurs potentiellement malveillants.
+
     SÉCURITÉ (Sécurité)
         WHITELISTED_IP: Liste d'adresses IP autorisées à contourner certaines restrictions.
         GLINE_DURATION: Durée de bannissement temporaire d'un utilisateur en minutes.
+
     DEBUG (Debug)
         DEBUG_LEVEL: Niveau de verbosité des messages de debug (plus grand est le nombre, plus il y a d'informations).
+
     COULEURS (Couleurs)
         CONFIG_COLOR: Dictionnaire contenant des codes de couleurs IRC pour un meilleur affichage des messages.
 
     Modification de la configuration
 
-        Vous devez modifier le fichier config.json en remplaçant les valeurs par défaut avec vos propres informations. Assurez-vous de bien lire la description de chaque paramètre pour une configuration optimale du service.
+        Vous devez modifier le fichier configuration.json en remplaçant les valeurs par défaut avec vos propres informations. Assurez-vous de bien lire la description de chaque paramètre pour une configuration optimale du service.
 
-    Attention
+# \\!/ Attention \\!/
+Le mot de passe de l'administrateur et le mot de passe du service doivent être modifiés pour des raisons de sécurité.
+Ne partagez pas vos informations de connexion au serveur IRC avec des tiers.
+a votre premiere connexion vous devez tapez 
 
-        Le mot de passe de l'administrateur et le mot de passe du service doivent être modifiés pour des raisons de sécurité.
-        Ne partagez pas vos informations de connexion au serveur IRC avec des tiers.
+        /msg [NomDuService] auth [nickname] [password]
+        -- Une fois identifié tapez la commande suivante
+        /msg [NomDuService] editaccess [nickname] [Nouveau-Password] 5
 
-#Extension:
+# Extension:
     Le code est modulaire et conçu pour être facilement étendu. Vous pouvez ajouter de nouvelles commandes, de nouvelles fonctionnalités (mods/mod_test.py  est un exemple pour bien demarrer la création de son module).
 
 # Contributions:

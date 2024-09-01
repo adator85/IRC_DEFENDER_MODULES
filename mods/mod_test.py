@@ -152,4 +152,4 @@ class Test():
                     self.Logs.debug(f"Test logs ready")
 
                 except Exception as err:
-                    self.Logs.error(f"{err}")
+                    self.Logs.error(f"Unknown Error: {err}")
