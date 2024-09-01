@@ -34,7 +34,8 @@ Il permet aux opérateurs de gérer efficacement un canal, tout en offrant aux u
         $ python3 main.py
 
 Si votre configuration est bonne, votre service est censé etre connecté a votre réseau IRC
-Pour Les prochains lancement de defender vous devez utiliser la commande suivante
+Pour Les prochains lancement de defender vous devez utiliser la commande suivante:
+
     Bash:
         $ systemctl --user [start | stop | restart | status] defender
 
