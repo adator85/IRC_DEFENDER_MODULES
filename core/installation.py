@@ -70,12 +70,23 @@ class Install:
                 venv_pip_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}pip',
                 venv_python_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}python'
             )
-        
 
         # Exclude Windows OS
         if os.name == 'nt':
             #print('/!\\ Skip installation /!\\')
             self.skip_install = True
+        else:
+            if self.is_root():
+                self.skip_install = True
+
+    def is_root(self) -> bool:
+
+        if os.geteuid() != 0:
+            return False
+        elif os.geteuid() == 0:
+            print('/!\\ Do not use root to install Defender /!\\')
+            self.Logs.critical('/!\\ Do not use root to install Defender /!\\')
+            return True
 
     def do_install(self) -> bool:
 
@@ -192,7 +203,7 @@ SyslogIdentifier=Defender
 Restart=on-failure
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 '''
         # Check if user systemd is available (.config/systemd/user/)
         if not os.path.exists(self.config.unix_systemd_folder):

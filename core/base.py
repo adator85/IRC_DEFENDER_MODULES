@@ -9,9 +9,9 @@ from core.loadConf import ConfigDataModel
 
 class Base:
 
-    CORE_DB_PATH = 'core' + os.sep + 'db' + os.sep              # Le dossier bases de données core
-    MODS_DB_PATH = 'mods' + os.sep + 'db' + os.sep              # Le dossier bases de données des modules
-    PYTHON_MIN_VERSION = '3.10'                                 # Version min de python
+    # CORE_DB_PATH = 'core' + os.sep + 'db' + os.sep              # Le dossier bases de données core
+    # MODS_DB_PATH = 'mods' + os.sep + 'db' + os.sep              # Le dossier bases de données des modules
+    # PYTHON_MIN_VERSION = '3.10'                                 # Version min de python
 
     def __init__(self, Config: ConfigDataModel) -> None:
 
@@ -26,6 +26,7 @@ class Base:
 
         self.lock = threading.RLock()                           # Création du lock
 
+        self.install: bool = False                              # Initialisation de la variable d'installation
         self.engine, self.cursor = self.db_init()               # Initialisation de la connexion a la base de données
         self.__create_db()                                      # Initialisation de la base de données
 
@@ -200,7 +201,7 @@ class Base:
         else:
             return False
 
-    def db_record_module(self, user_cmd:str, module_name:str) -> None:
+    def db_record_module(self, user_cmd:str, module_name:str, isdefault:int = 0) -> None:
         """Enregistre les modules dans la base de données
 
         Args:
@@ -210,7 +211,7 @@ class Base:
         if not self.db_isModuleExist(module_name):
             self.logs.debug(f"Le module {module_name} n'existe pas alors ont le créer")
             insert_cmd_query = f"INSERT INTO {self.Config.table_module} (datetime, user, module_name, isdefault) VALUES (:datetime, :user, :module_name, :isdefault)"
-            mes_donnees = {'datetime': self.get_datetime(), 'user': user_cmd, 'module_name': module_name, 'isdefault': 0}
+            mes_donnees = {'datetime': self.get_datetime(), 'user': user_cmd, 'module_name': module_name, 'isdefault': isdefault}
             self.db_execute_query(insert_cmd_query, mes_donnees)
         else:
             self.logs.debug(f"Le module {module_name} existe déja dans la base de données")
@@ -532,6 +533,7 @@ class Base:
         full_path_db = self.Config.db_path + self.Config.db_name
 
         if not os.path.exists(db_directory):
+            self.install = True
             os.makedirs(db_directory)
 
         engine = create_engine(f'sqlite:///{full_path_db}.db', echo=False)
@@ -599,6 +601,11 @@ class Base:
         self.db_execute_query(table_core_admin)
         self.db_execute_query(table_core_channel)
         self.db_execute_query(table_core_config)
+
+        if self.install:
+            self.db_record_module('sys', 'mod_command', 1)
+            self.db_record_module('sys', 'mod_defender', 1)
+            self.install = False
 
         return None
 

@@ -1,6 +1,6 @@
 import json, sys
 from os import sep
-from typing import Union
+from typing import Union, Literal
 from dataclasses import dataclass, field
 
 ##########################################
@@ -11,58 +11,128 @@ from dataclasses import dataclass, field
 class ConfigDataModel:
 
     SERVEUR_IP: str
-    SERVEUR_HOSTNAME: str                     # Le hostname du serveur IRC
-    SERVEUR_LINK: str                 # Host attendu par votre IRCd (ex. dans votre link block pour Unrealircd)
-    SERVEUR_PORT: int                                     # Port du link
-    SERVEUR_PASSWORD: str             # Mot de passe du link (Privilégiez argon2 sur Unrealircd)
-    SERVEUR_ID: str                                      # SID (identification) du bot en tant que Services
-    SERVEUR_SSL: bool                                      # Activer la connexion SSL
+    """Server public IP (could be 127.0.0.1 localhost)"""
 
-    SERVICE_NAME: str                               # Le nom du service
-    SERVICE_NICKNAME: str                     # Nick du bot sur IRC
-    SERVICE_REALNAME: str                     # Realname du bot
-    SERVICE_USERNAME: str                     # Ident du bot
-    SERVICE_HOST: str                 # Host du bot
-    SERVICE_INFO: str                    # swhois du bot
-    SERVICE_CHANLOG: str                           # Salon des logs et autres messages issus du bot
-    SERVICE_SMODES: str                               # Mode du service
-    SERVICE_CMODES: str                                 # Mode du salon (#ChanLog) que le bot appliquera à son entrée
-    SERVICE_UMODES: str                                    # Mode que le bot pourra se donner à sa connexion au salon chanlog
-    SERVICE_PREFIX: str                                    # Prefix pour envoyer les commandes au bot
-    SERVICE_ID: str = field(init=False)                      # L'identifiant du service
+    SERVEUR_HOSTNAME: str
+    """IRC Server Hostname (your.hostname.extension)"""
 
-    OWNER: str                                        # Identifiant du compte admin
-    PASSWORD: str                                     # Mot de passe du compte admin
+    SERVEUR_LINK: str
+    """The link hostname (should be the same as your unrealircd link block)"""
 
-    SALON_JAIL: str                                    # Salon pot de miel
-    SALON_JAIL_MODES: str                                 # Mode du salon pot de miel
-    SALON_LIBERER: str                              # Le salon ou sera envoyé l'utilisateur clean
+    SERVEUR_PORT: int
+    """Server port as configured in your unrealircd link block"""
 
-    API_TIMEOUT: int                                         # Timeout des api's
+    SERVEUR_PASSWORD: str
+    """Your link password"""
 
-    PORTS_TO_SCAN: list    # Liste des ports a scanné pour une detection de proxy
-    WHITELISTED_IP: list                          # IP a ne pas scanner
-    GLINE_DURATION: str                                   # La durée du gline
+    SERVEUR_ID: str
+    """Service identification could be Z01 should be unique"""
 
-    DEBUG_LEVEL: int                                        # Le niveau des logs DEBUG 10 | INFO 20 | WARNING 30 | ERROR 40 | CRITICAL 50
+    SERVEUR_SSL: bool
+    """Activate SSL connexion"""
+
+    SERVICE_NAME: str
+    """Service name (Ex. Defender)"""
+
+    SERVICE_NICKNAME: str
+    """Nickname of the service (Ex. Defender)"""
+
+    SERVICE_REALNAME: str
+    """Realname of the service"""
+
+    SERVICE_USERNAME: str
+    """Username of the service"""
+
+    SERVICE_HOST: str
+    """The service hostname"""
+
+    SERVICE_INFO: str
+    """Swhois of the service"""
+
+    SERVICE_CHANLOG: str
+    """The channel used by the service (ex. #services)"""
+
+    SERVICE_SMODES: str
+    """The service mode (ex. +ioqBS)"""
+
+    SERVICE_CMODES: str
+    """The mode of the log channel (ex. ntsO)"""
+
+    SERVICE_UMODES: str
+    """The mode of the service when joining chanlog (ex. o, the service will be operator in the chanlog)"""
+
+    SERVICE_PREFIX: str
+    """The default prefix to communicate with the service"""
+
+    SERVICE_ID: str = field(init=False)
+    """The service unique ID"""
+
+    OWNER: str
+    """The nickname of the admin of the service"""
+
+    PASSWORD: str
+    """The password of the admin of the service"""
+
+    SALON_JAIL: str
+    """The JAIL channel (ex. #jail)"""
+
+    SALON_JAIL_MODES: str
+    """The jail channel modes (ex. sS)"""
+
+    SALON_LIBERER: str
+    """Channel where the nickname will be released"""
+
+    API_TIMEOUT: int
+    """Default api timeout in second"""
+
+    PORTS_TO_SCAN: list
+    """List of ports to scan available for proxy_scan in the mod_defender module"""
+
+    WHITELISTED_IP: list
+    """List of remote IP to don't scan"""
+
+    GLINE_DURATION: str
+    """Gline duration"""
+
+    DEBUG_LEVEL:Literal[10, 20, 30, 40, 50]                                         # Le niveau des logs DEBUG 10 | INFO 20 | WARNING 30 | ERROR 40 | CRITICAL 50
+    """Logs level: DEBUG 10 | INFO 20 | WARNING 30 | ERROR 40 | CRITICAL 50"""
 
     CONFIG_COLOR: dict[str, str]
 
     table_admin: str
+    """Admin table"""
+
     table_commande: str
+    """Core command table"""
+
     table_log: str
+    """Core log table"""
+
     table_module: str
+    """Core module table"""
+
     table_config: str
+    """Core configuration table"""
+
     table_channel: str
+    """Core channel table"""
 
     current_version: str
+    """Current version of Defender"""
+
     latest_version: str
+    """The Latest version fetched from github"""
+
     db_name: str
+    """The database name"""
+
     db_path: str
+    """The database path"""
 
     def __post_init__(self):
         # Initialiser SERVICE_ID après la création de l'objet
         self.SERVICE_ID:str = f"{self.SERVEUR_ID}AAAAAB"
+        """The service ID which is SERVEUR_ID and AAAAAB"""
 
 class Config:
 
