@@ -4,12 +4,13 @@ from pathlib import Path
 from subprocess import check_call, run, CalledProcessError, PIPE
 from platform import python_version, python_version_tuple
 from sys import exit
-import os
+import os, logging
 
 class Install:
 
     @dataclass
     class CoreConfig:
+        install_log_file: str
         unix_systemd_folder: str
         service_file_name: str
         service_cmd_executable: list
@@ -28,9 +29,13 @@ class Install:
     def __init__(self) -> None:
 
         self.set_configuration()
-        
+
+        self.init_log_system()
+
         if self.skip_install:
             return None
+
+        self.Logs.debug(f'Configuration loaded : {self.config}')
 
         if not self.check_python_version():
             # Tester si c'est la bonne version de python
@@ -57,6 +62,7 @@ class Install:
         defender_main_executable = os.path.join(defender_install_folder, 'main.py')
 
         self.config = self.CoreConfig(
+                install_log_file='install.log',
                 unix_systemd_folder=unix_systemd_folder,
                 service_file_name='defender.service',
                 service_cmd_executable=['systemctl', '--user', 'start', 'defender'],
@@ -81,9 +87,23 @@ class Install:
             if self.is_root():
                 self.skip_install = True
 
+    def init_log_system(self) -> None:
+
+        # Init logs object
+        self.Logs = logging
+        self.Logs.basicConfig(level=logging.DEBUG,
+                              filename=self.config.log_file,
+                              encoding='UTF-8',
+                              format='%(asctime)s - %(levelname)s - %(filename)s - %(lineno)d - %(funcName)s - %(message)s')
+
+        self.Logs.debug('#################### STARTING INSTALLATION ####################')
+
+        return None
+
     def is_root(self) -> bool:
 
         if os.geteuid() != 0:
+            self.Logs.debug('User without privileges ==> PASS')
             return False
         elif os.geteuid() == 0:
             print('/!\\ Do not use root to install Defender /!\\')
@@ -96,23 +116,29 @@ class Install:
 
         if not os.path.exists(full_service_file_path):
             print(f'/!\\ Service file does not exist /!\\')
+            self.Logs.debug('/!\\ Service file does not exist ==> PASS /!\\')
             return True
 
         # Check if virtual env exist
         if not os.path.exists(f'{os.path.join(self.config.defender_install_folder, self.config.venv_folder)}'):
             self.run_subprocess(self.config.venv_cmd_installation)
             print(f'/!\\ Virtual env does not exist run the install /!\\')
+            self.Logs.debug('/!\\ Virtual env does not exist run the install ==> PASS /!\\')
             return True
 
     def run_subprocess(self, command:list) -> None:
 
         print(command)
+        self.Logs.debug(f"> {command}")
         try:
             check_call(command)
-            print("La commande s'est terminée avec succès.")
+            print("The command completed successfully.")
+            self.Logs.debug("The command completed successfully.")
         except CalledProcessError as e:
-            print(f"La commande a échoué avec le code de retour :{e.returncode}")
+            print(f"The command failed with the return code: {e.returncode}")
             print(f"Try to install dependencies ...")
+            self.Logs.critical(f"The command failed with the return code: {e.returncode}")
+            self.Logs.critical("Try to install dependencies manually ...")
             exit(5)
 
     def check_python_version(self) -> bool:
@@ -130,13 +156,16 @@ class Install:
 
         if int(sys_major) < int(min_major):
             print(f"## Your python version must be greather than or equal to {self.config.python_current_version} ##")
+            self.Logs.critical(f'## Your python version must be greather than or equal to {self.config.python_current_version} ##')
             return False
 
         elif (int(sys_major) <= int(min_major)) and (int(sys_minor) < int(min_minor)):
             print(f"## Your python version must be greather than or equal to {self.config.python_current_version} ##")
+            self.Logs.critical(f'## Your python version must be greather than or equal to {self.config.python_current_version} ##')
             return False
 
         print(f"===> Version of python : {self.config.python_current_version} ==> OK")
+        self.Logs.debug(f'===> Version of python : {self.config.python_current_version} ==> OK')
 
         return True
 
@@ -146,7 +175,8 @@ class Install:
             # Run a command in the virtual environment's Python to check if the package is installed
             run([self.config.venv_python_executable, '-c', f'import {package_name}'], check=True, stdout=PIPE, stderr=PIPE)
             return True
-        except CalledProcessError:
+        except CalledProcessError as cpe:
+            self.Logs.error(cpe)
             return False
 
     def install_dependencies(self) -> None:
@@ -193,6 +223,7 @@ class Install:
 
         if os.path.exists(full_service_file_path):
             print(f'/!\\ Service file already exist /!\\')
+            self.Logs.debug(f'The file {full_service_file_path} exist ==> PASS')
             return None
 
         contain = f'''[Unit]
