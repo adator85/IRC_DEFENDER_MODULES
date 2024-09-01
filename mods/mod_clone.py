@@ -198,7 +198,7 @@ class Clone():
             case 'clone':
                 option = str(cmd[1]).lower()
 
-                if len(option) == 1:
+                if len(command) == 1:
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone connect 6')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone kill [all | nickname]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone join [all | nickname] #channel')

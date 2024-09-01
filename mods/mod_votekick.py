@@ -48,7 +48,7 @@ class Votekick():
 
         # Créer les nouvelles commandes du module
         self.commands_level = {
-            0: ['vote_for', 'vote_against'],
+            0: ['vote'],
             1: ['activate', 'deactivate', 'submit', 'vote_stat', 'vote_verdict', 'vote_cancel']
         }
 
@@ -59,6 +59,8 @@ class Votekick():
         self.Logs.debug(f'Module {self.module_name} loaded ...')
 
     def __init_module(self) -> None:
+
+        self.Admin = self.Irc.Admin
 
         self.__set_commands(self.commands_level)
         self.__create_tables()
@@ -192,7 +194,9 @@ class Votekick():
 
     def join_saved_channels(self) -> None:
 
-        result = self.Base.db_execute_query("SELECT id, channel FROM votekick_channel")
+        param = {'module_name': self.module_name}
+        result = self.Base.db_execute_query(f"SELECT id, channel_name FROM {self.Config.table_channel} WHERE module_name = :module_name", param)
+
         channels = result.fetchall()
         unixtime = self.Base.get_unixtime()
 
@@ -258,186 +262,213 @@ class Votekick():
         fromchannel = channel
 
         match command:
+            case 'vote':
+                option = str(cmd[1]).lower()
+                match option:
 
-            case 'vote_cancel':
-                try:
-                    if channel is None:
-                        self.Logs.error(f"The channel is not known, defender can't cancel the vote")
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :You need to specify the channel => /msg {dnickname} vote_cancel #channel')
+                    case 'activate':
+                        try:
+                            # vote activate #channel
+                            if self.Admin.get_Admin(fromuser) is None:
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Your are not allowed to execute this command')
+                                return None
 
-                    for vote in self.VOTE_CHANNEL_DB:
-                        if vote.channel_name == channel:
-                            self.init_vote_system(channel)
-                            self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Vote system re-initiated')
+                            sentchannel = str(cmd[2]).lower() if self.Base.Is_Channel(str(cmd[2]).lower()) else None
+                            if sentchannel is None:
+                                self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The correct command is {self.Config.SERVICE_PREFIX}{command} {option} #CHANNEL")
 
-                except IndexError as ke:
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote_cancel #channel')
-                    self.Logs.error(f'Index Error: {ke}')
+                            self.insert_vote_channel(
+                                self.VoteChannelModel(
+                                    channel_name=sentchannel,
+                                    target_user='',
+                                    voter_users=[],
+                                    vote_for=0,
+                                    vote_against=0
+                                    )
+                                )
 
-            case 'vote_for':
-                try:
-                    # vote_for
-                    channel = fromchannel
-                    for chan in self.VOTE_CHANNEL_DB:
-                        if chan.channel_name == channel:
-                            if fromuser in chan.voter_users:
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :You already submitted a vote')
-                            else:
-                                chan.vote_for += 1
-                                chan.voter_users.append(fromuser)
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Vote recorded, thank you')
+                            self.Base.db_query_channel('add', self.module_name, sentchannel)
 
-                except KeyError as ke:
-                    self.Logs.error(f'Key Error: {ke}')
-                except IndexError as ie:
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} vote_cancel #channel')
-                    self.Logs.error(f'Index Error: {ie}')
+                            self.Irc.send2socket(f":{dnickname} JOIN {sentchannel}")
+                            self.Irc.send2socket(f":{dnickname} SAMODE {sentchannel} +o {dnickname}")
+                            self.Irc.send2socket(f":{dnickname} PRIVMSG {sentchannel} :You can now use !submit <nickname> to decide if he will stay or not on this channel ")
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option} #channel')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option} #welcome')
 
-            case 'vote_against':
-                try:
-                    # vote_against
-                    channel = fromchannel
-                    for chan in self.VOTE_CHANNEL_DB:
-                        if chan.channel_name == channel:
-                            if fromuser in chan.voter_users:
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :You already submitted a vote')
-                            else:
-                                chan.vote_against += 1
-                                chan.voter_users.append(fromuser)
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Vote recorded, thank you')
+                    case 'deactivate':
+                        try:
+                            # vote deactivate #channel
+                            if self.Admin.get_Admin(fromuser) is None:
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Your are not allowed to execute this command')
+                                return None
 
-                except KeyError as ke:
-                    self.Logs.error(f'Key Error: {ke}')
+                            sentchannel = str(cmd[2]).lower() if self.Base.Is_Channel(str(cmd[2]).lower()) else None
+                            if sentchannel is None:
+                                self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The correct command is {self.Config.SERVICE_PREFIX}{command} {option} #CHANNEL")
 
-            case 'vote_stat':
-                try:
-                    # channel = str(fullcmd[2]).lower()
-                    for chan in self.VOTE_CHANNEL_DB:
-                        if chan.channel_name == channel:
-                            self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Channel: {chan.channel_name} | Target: {self.User.get_nickname(chan.target_user)} | For: {chan.vote_for} | Against: {chan.vote_against} | Number of voters: {str(len(chan.voter_users))}')
+                            self.Irc.send2socket(f":{dnickname} SAMODE {sentchannel} -o {dnickname}")
+                            self.Irc.send2socket(f":{dnickname} PART {sentchannel}")
 
-                except KeyError as ke:
-                    self.Logs.error(f'Key Error: {ke}')
+                            for chan in self.VOTE_CHANNEL_DB:
+                                if chan.channel_name == sentchannel:
+                                    self.VOTE_CHANNEL_DB.remove(chan)
+                                    self.Base.db_query_channel('del', self.module_name, chan.channel_name)
 
-            case 'vote_verdict':
-                try:
-                    # channel = str(fullcmd[2]).lower()
-                    for chan in self.VOTE_CHANNEL_DB:
-                        if chan.channel_name == channel:
-                            target_user = self.User.get_nickname(chan.target_user)
-                            if chan.vote_for > chan.vote_against:
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll be kicked from the channel')
-                                self.Irc.send2socket(f":{dnickname} KICK {channel} {target_user} Following the vote, you are not welcome in {channel}")
-                            elif chan.vote_for <= chan.vote_against:
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll remain in the channel')
-                            
-                            # Init the system
-                            if self.init_vote_system(channel):
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :System vote re initiated')
+                            self.Logs.debug(f"The Channel {sentchannel} has been deactivated from the vote system")
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option} #channel')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option} #welcome')
 
-                except KeyError as ke:
-                    self.Logs.error(f'Key Error: {ke}')
+                    case '+':
+                        try:
+                            # vote +
+                            channel = fromchannel
+                            for chan in self.VOTE_CHANNEL_DB:
+                                if chan.channel_name == channel:
+                                    if fromuser in chan.voter_users:
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :You already submitted a vote')
+                                    else:
+                                        chan.vote_for += 1
+                                        chan.voter_users.append(fromuser)
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Vote recorded, thank you')
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option}')
 
-            case 'submit':
-                # submit nickname
-                try:
-                    nickname_submitted = cmd[1]
-                    # channel = str(fullcmd[2]).lower()
-                    uid_submitted = self.User.get_uid(nickname_submitted)
-                    user_submitted = self.User.get_User(nickname_submitted)
+                    case '-':
+                        try:
+                            # vote -
+                            channel = fromchannel
+                            for chan in self.VOTE_CHANNEL_DB:
+                                if chan.channel_name == channel:
+                                    if fromuser in chan.voter_users:
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :You already submitted a vote')
+                                    else:
+                                        chan.vote_against += 1
+                                        chan.voter_users.append(fromuser)
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Vote recorded, thank you')
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option}')
 
-                    # check if there is an ongoing vote
-                    if self.is_vote_ongoing(channel):
-                        for vote in self.VOTE_CHANNEL_DB:
-                            if vote.channel_name == channel:
-                                ongoing_user = self.User.get_nickname(vote.target_user)
+                    case 'cancel':
+                        try:
+                            # vote cancel
+                            if self.Admin.get_Admin(fromuser) is None:
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Your are not allowed to execute this command')
+                                return None
 
-                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :There is an ongoing vote on {ongoing_user}')
-                        return False
+                            if channel is None:
+                                self.Logs.error(f"The channel is not known, defender can't cancel the vote")
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :You need to specify the channel => /msg {dnickname} vote_cancel #channel')
 
-                    # check if the user exist
-                    if user_submitted is None:
-                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This nickname <{nickname_submitted}> do not exist')
-                        return False
+                            for vote in self.VOTE_CHANNEL_DB:
+                                if vote.channel_name == channel:
+                                    self.init_vote_system(channel)
+                                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Vote system re-initiated')
 
-                    uid_cleaned = self.Base.clean_uid(uid_submitted)
-                    ChannelInfo = self.Channel.get_Channel(channel)
-                    if ChannelInfo is None:
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :This channel [{channel}] do not exist in the Channel Object')
-                        return False
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option}')
 
-                    clean_uids_in_channel: list = []
-                    for uid in ChannelInfo.uids:
-                        clean_uids_in_channel.append(self.Base.clean_uid(uid))
+                    case 'status':
+                        try:
+                            # vote status
+                            for chan in self.VOTE_CHANNEL_DB:
+                                if chan.channel_name == channel:
+                                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :Channel: {chan.channel_name} | Target: {self.User.get_nickname(chan.target_user)} | For: {chan.vote_for} | Against: {chan.vote_against} | Number of voters: {str(len(chan.voter_users))}')
 
-                    if not uid_cleaned in clean_uids_in_channel:
-                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This nickname <{nickname_submitted}> is not available in this channel')
-                        return False
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option}')
 
-                    # check if Ircop or Service or Bot
-                    pattern = fr'[o|B|S]'
-                    operator_user = re.findall(pattern, user_submitted.umodes)
-                    if operator_user:
-                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :You cant vote for this user ! he/she is protected')
-                        return False
+                    case 'submit':
+                        try:
+                            # vote submit nickname
+                            if self.Admin.get_Admin(fromuser) is None:
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Your are not allowed to execute this command')
+                                return None
 
-                    for chan in self.VOTE_CHANNEL_DB:
-                        if chan.channel_name == channel:
-                            chan.target_user = self.User.get_uid(nickname_submitted)
+                            nickname_submitted = cmd[2]
+                            uid_submitted = self.User.get_uid(nickname_submitted)
+                            user_submitted = self.User.get_User(nickname_submitted)
 
-                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :{nickname_submitted} has been targeted for a vote')
+                            # check if there is an ongoing vote
+                            if self.is_vote_ongoing(channel):
+                                for vote in self.VOTE_CHANNEL_DB:
+                                    if vote.channel_name == channel:
+                                        ongoing_user = self.User.get_nickname(vote.target_user)
 
-                    self.Base.create_timer(60, self.timer_vote_verdict, (channel, ))
-                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This vote will end after 60 secondes')
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :There is an ongoing vote on {ongoing_user}')
+                                return False
 
-                except KeyError as ke:
-                    self.Logs.error(f'Key Error: {ke}')
-                except TypeError as te:
-                    self.Logs.error(te)
+                            # check if the user exist
+                            if user_submitted is None:
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This nickname <{nickname_submitted}> do not exist')
+                                return False
 
-            case 'activate':
-                try:
-                    # activate #channel
-                    sentchannel = str(cmd[1]).lower() if self.Base.Is_Channel(str(cmd[1]).lower()) else None
-                    if sentchannel is None:
-                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The correct command is {self.Config.SERVICE_PREFIX}ACTIVATE #CHANNEL")
+                            uid_cleaned = self.Base.clean_uid(uid_submitted)
+                            ChannelInfo = self.Channel.get_Channel(channel)
+                            if ChannelInfo is None:
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :This channel [{channel}] do not exist in the Channel Object')
+                                return False
 
-                    self.insert_vote_channel(
-                        self.VoteChannelModel(
-                            channel_name=sentchannel,
-                            target_user='',
-                            voter_users=[],
-                            vote_for=0,
-                            vote_against=0
-                            )
-                        )
+                            clean_uids_in_channel: list = []
+                            for uid in ChannelInfo.uids:
+                                clean_uids_in_channel.append(self.Base.clean_uid(uid))
 
-                    self.Base.db_query_channel('add', self.module_name, sentchannel)
+                            if not uid_cleaned in clean_uids_in_channel:
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This nickname <{nickname_submitted}> is not available in this channel')
+                                return False
 
-                    self.Irc.send2socket(f":{dnickname} JOIN {sentchannel}")
-                    self.Irc.send2socket(f":{dnickname} SAMODE {sentchannel} +o {dnickname}")
-                    self.Irc.send2socket(f":{dnickname} PRIVMSG {sentchannel} :You can now use !submit <nickname> to decide if he will stay or not on this channel ")
+                            # check if Ircop or Service or Bot
+                            pattern = fr'[o|B|S]'
+                            operator_user = re.findall(pattern, user_submitted.umodes)
+                            if operator_user:
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :You cant vote for this user ! he/she is protected')
+                                return False
 
-                except KeyError as ke:
-                    self.Logs.error(f"Key Error : {ke}")
+                            for chan in self.VOTE_CHANNEL_DB:
+                                if chan.channel_name == channel:
+                                    chan.target_user = self.User.get_uid(nickname_submitted)
 
-            case 'deactivate':
-                try:
-                    # deactivate #channel
-                    sentchannel = str(cmd[1]).lower() if self.Base.Is_Channel(str(cmd[1]).lower()) else None
-                    if sentchannel is None:
-                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The correct command is {self.Config.SERVICE_PREFIX}DEACTIVATE #CHANNEL")
+                            self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :{nickname_submitted} has been targeted for a vote')
 
-                    self.Irc.send2socket(f":{dnickname} SAMODE {sentchannel} -o {dnickname}")
-                    self.Irc.send2socket(f":{dnickname} PART {sentchannel}")
+                            self.Base.create_timer(60, self.timer_vote_verdict, (channel, ))
+                            self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :This vote will end after 60 secondes')
 
-                    for chan in self.VOTE_CHANNEL_DB:
-                        if chan.channel_name == sentchannel:
-                            self.VOTE_CHANNEL_DB.remove(chan)
-                            self.Base.db_query_channel('del', self.module_name, chan.channel_name)
-                            # self.db_delete_vote_channel(chan.channel_name)
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option} nickname')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option} adator')
 
-                    self.Logs.debug(f"The Channel {sentchannel} has been deactivated from the vote system")
+                    case 'verdict':
+                        try:
+                            # vote verdict
+                            if self.Admin.get_Admin(fromuser) is None:
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Your are not allowed to execute this command')
+                                return None
 
-                except KeyError as ke:
-                    self.Logs.error(f"Key Error : {ke}")
+                            for chan in self.VOTE_CHANNEL_DB:
+                                if chan.channel_name == channel:
+                                    target_user = self.User.get_nickname(chan.target_user)
+                                    if chan.vote_for > chan.vote_against:
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll be kicked from the channel')
+                                        self.Irc.send2socket(f":{dnickname} KICK {channel} {target_user} Following the vote, you are not welcome in {channel}")
+                                    elif chan.vote_for <= chan.vote_against:
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll remain in the channel')
+                                    
+                                    # Init the system
+                                    if self.init_vote_system(channel):
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :System vote re initiated')
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} {command} {option}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} {command} {option}')
