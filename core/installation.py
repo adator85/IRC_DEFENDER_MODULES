@@ -109,6 +109,7 @@ class Install:
         elif os.geteuid() == 0:
             print('/!\\ Do not use root to install Defender /!\\')
             self.Logs.critical('/!\\ Do not use root to install Defender /!\\')
+            exit("Do not use root to install Defender")
             return True
 
     def do_install(self) -> bool:
