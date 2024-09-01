@@ -38,7 +38,7 @@ class Clone():
 
         # Créer les nouvelles commandes du module
         self.commands_level = {
-            1: ['clone_connect', 'clone_join', 'clone_kill', 'clone_list']
+            1: ['clone']
         }
 
         # Init the module (Mandatory)
@@ -195,68 +195,147 @@ class Clone():
 
         match command:
 
-            case 'clone_connect':
-                # clone_connect 25
-                try:
-                    number_of_clones = int(cmd[1])
-                    for i in range(number_of_clones):
-                        nickname, username = self.generate_names()
-                        self.Base.create_thread(
-                            self.thread_create_clones,
-                            (nickname, username, [], 6697, True)
-                            )
+            case 'clone':
+                option = str(cmd[1]).lower()
+                match option:
 
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{str(number_of_clones)} clones joined the network')
+                    case 'connect':
+                        try:
+                            number_of_clones = int(cmd[2])
+                            for i in range(number_of_clones):
+                                nickname, username = self.generate_names()
+                                self.Base.create_thread(
+                                    self.thread_create_clones,
+                                    (nickname, username, [], 6697, True)
+                                    )
 
-                except Exception as err:
-                    self.Logs.error(f'{err}')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_connect [number of clone you want to connect]')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} clone_kill 6')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{str(number_of_clones)} clones joined the network')
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_connect [number of clone you want to connect]')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} clone_kill 6')
 
-            case 'clone_kill':
-                try:
-                    clone_name = str(cmd[1])
-                    clone_to_kill: list[str] = []
+                    case 'kill':
+                        try:
+                            # clone kill [all | nickname]
+                            clone_name = str(cmd[2])
+                            clone_to_kill: list[str] = []
 
-                    if clone_name.lower() == 'all':
-                        for clone in self.Clone.UID_CLONE_DB:
-                            self.Irc.send2socket(f':{dnickname} PRIVMSG {clone.nickname} :KILL')
-                            clone_to_kill.append(clone.nickname)
-                            clone.alive = False
+                            if clone_name.lower() == 'all':
+                                for clone in self.Clone.UID_CLONE_DB:
+                                    self.Irc.send2socket(f':{dnickname} PRIVMSG {clone.nickname} :KILL')
+                                    clone_to_kill.append(clone.nickname)
+                                    clone.alive = False
 
-                        for clone_nickname in clone_to_kill:
-                            self.Clone.delete(clone_nickname)
+                                for clone_nickname in clone_to_kill:
+                                    self.Clone.delete(clone_nickname)
 
-                        del clone_to_kill
+                                del clone_to_kill
 
-                    else:
-                        if self.Clone.exists(clone_name):
-                            self.Irc.send2socket(f':{dnickname} PRIVMSG {clone_name} :KILL')
-                            self.Clone.kill(clone_name)
-                            self.Clone.delete(clone_name)
+                            else:
+                                if self.Clone.exists(clone_name):
+                                    self.Irc.send2socket(f':{dnickname} PRIVMSG {clone_name} :KILL')
+                                    self.Clone.kill(clone_name)
+                                    self.Clone.delete(clone_name)
 
-                except Exception as err:
-                    self.Logs.error(f'{err}')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_kill all')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_kill [clone_name]')
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_kill all')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_kill [clone_name]')
 
-            case 'clone_join':
-                try:
-                    # clone_join nickname #channel
-                    clone_name = str(cmd[1])
-                    clone_channel_to_join = cmd[2]
+                    case 'join':
+                        try:
+                            # clone join [all | nickname] #channel
+                            clone_name = str(cmd[2])
+                            clone_channel_to_join = str(cmd[3])
 
-                    if clone_name.lower() == 'all':
-                        self.Base.create_thread(self.thread_join_channels, (clone_channel_to_join, 2))
-                    else:
-                        self.Base.create_thread(self.thread_join_channels, (clone_channel_to_join, 2, clone_name))
+                            if clone_name.lower() == 'all':
+                                self.Base.create_thread(self.thread_join_channels, (clone_channel_to_join, 2))
+                            else:
+                                self.Base.create_thread(self.thread_join_channels, (clone_channel_to_join, 2, clone_name))
 
-                except Exception as err:
-                    self.Logs.error(f'{err}')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_join all #channel')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_join clone_nickname #channel')
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone join all #channel')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone join clone_nickname #channel')
 
-            case 'clone_list':
+                    case 'list':
+                        try:
+                            for clone_name in self.Clone.UID_CLONE_DB:
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> {clone_name.nickname} | {clone_name.username}')
+                            pass
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
 
-                for clone_name in self.Clone.UID_CLONE_DB:
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> {clone_name.nickname} | {clone_name.username}')
+                    case _:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone connect 6')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone kill [all | nickname]')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone join [all | nickname] #channel')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone list')
+
+            # case 'clone_connect':
+            #     # clone_connect 25
+            #     # clone connect 25
+            #     try:
+            #         number_of_clones = int(cmd[1])
+            #         for i in range(number_of_clones):
+            #             nickname, username = self.generate_names()
+            #             self.Base.create_thread(
+            #                 self.thread_create_clones,
+            #                 (nickname, username, [], 6697, True)
+            #                 )
+
+            #         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{str(number_of_clones)} clones joined the network')
+
+            #     except Exception as err:
+            #         self.Logs.error(f'{err}')
+            #         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_connect [number of clone you want to connect]')
+            #         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} clone_kill 6')
+
+            # case 'clone_kill':
+            #     try:
+            #         clone_name = str(cmd[1])
+            #         clone_to_kill: list[str] = []
+
+            #         if clone_name.lower() == 'all':
+            #             for clone in self.Clone.UID_CLONE_DB:
+            #                 self.Irc.send2socket(f':{dnickname} PRIVMSG {clone.nickname} :KILL')
+            #                 clone_to_kill.append(clone.nickname)
+            #                 clone.alive = False
+
+            #             for clone_nickname in clone_to_kill:
+            #                 self.Clone.delete(clone_nickname)
+
+            #             del clone_to_kill
+
+            #         else:
+            #             if self.Clone.exists(clone_name):
+            #                 self.Irc.send2socket(f':{dnickname} PRIVMSG {clone_name} :KILL')
+            #                 self.Clone.kill(clone_name)
+            #                 self.Clone.delete(clone_name)
+
+            #     except Exception as err:
+            #         self.Logs.error(f'{err}')
+            #         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_kill all')
+            #         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_kill [clone_name]')
+
+            # case 'clone_join':
+            #     try:
+            #         # clone_join nickname #channel
+            #         clone_name = str(cmd[1])
+            #         clone_channel_to_join = cmd[2]
+
+            #         if clone_name.lower() == 'all':
+            #             self.Base.create_thread(self.thread_join_channels, (clone_channel_to_join, 2))
+            #         else:
+            #             self.Base.create_thread(self.thread_join_channels, (clone_channel_to_join, 2, clone_name))
+
+            #     except Exception as err:
+            #         self.Logs.error(f'{err}')
+            #         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_join all #channel')
+            #         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone_join clone_nickname #channel')
+
+            # case 'clone_list':
+
+            #     for clone_name in self.Clone.UID_CLONE_DB:
+            #         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> {clone_name.nickname} | {clone_name.username}')
