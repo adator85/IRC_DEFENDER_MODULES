@@ -35,7 +35,9 @@ class Command():
         # Create module commands (Mandatory)
         self.commands_level = {
             1: ['join', 'part'],
-            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 'devoice', 'opall', 'deopall', 'devoiceall', 'voiceall', 'ban', 'unban','kick', 'kickban', 'umode']
+            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 
+                'devoice', 'opall', 'deopall', 'devoiceall', 'voiceall', 'ban', 
+                'unban','kick', 'kickban', 'umode', 'svsjoin', 'svspart', 'svsnick']
         }
 
         # Init the module
@@ -581,8 +583,62 @@ class Command():
                     nickname = str(cmd[1])
                     umode = str(cmd[2])
 
-                    self.send2socket(f':{dnickname} SVSMODE {nickname} {umode}')
+                    self.Irc.send2socket(f':{dnickname} SVSMODE {nickname} {umode}')
                 except KeyError as ke:
                     self.Base.logs.error(ke)
                 except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'svsjoin':
+                try:
+                    # .svsjoin nickname #channel
+                    nickname = str(cmd[1])
+                    channel = str(cmd[2])
+                    if len(cmd) != 3:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSJOIN nickname #channel')
+                        return None
+
+                    self.Irc.send2socket(f':{self.Config.SERVEUR_ID} SVSJOIN {nickname} {channel}')
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSJOIN nickname #channel')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'svspart':
+                try:
+                    # .svspart nickname #channel
+                    nickname = str(cmd[1])
+                    channel = str(cmd[2])
+                    if len(cmd) != 3:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSPART nickname #channel')
+                        return None
+
+                    self.Irc.send2socket(f':{self.Config.SERVEUR_ID} SVSPART {nickname} {channel}')
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSPART nickname #channel')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'svsnick':
+                try:
+                    # .svsnick nickname newnickname
+                    nickname = str(cmd[1])
+                    newnickname = str(cmd[2])
+                    unixtime = self.Base.get_unixtime()
+
+                    if self.User.get_nickname(nickname) is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : This nickname do not exist')
+                        return None
+
+                    if len(cmd) != 3:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSNICK nickname newnickname')
+                        return None
+
+                    self.Irc.send2socket(f':{self.Config.SERVEUR_ID} SVSNICK {nickname} {newnickname} {unixtime}')
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSNICK nickname newnickname')
                     self.Logs.warning(f'Unknown Error: {str(err)}')
