@@ -1,4 +1,4 @@
-import socket, ssl, time
+import socket, ssl
 from ssl import SSLSocket
 from core.loadConf import Config
 from core.Model import Clones
@@ -186,15 +186,17 @@ class Connection:
                         nickname = fullname.split('!')[0].replace(':','')
                         if nickname == self.Config.SERVICE_NICKNAME:
                             command = str(response[3]).replace(':','')
+
                             if command == 'KILL':
                                 self.send2socket(f'QUIT :Thanks and goodbye')
                                 self.signal = self.currentCloneObject.alive
+
                             if command == 'JOIN':
                                 channel_to_join = str(response[4])
                                 self.send2socket(f"JOIN {channel_to_join}")
+
                             if command == 'SAY':
                                 clone_channel = str(response[4])
-
                                 message = []
                                 for i in range(5, len(response)):
                                     message.append(response[i])

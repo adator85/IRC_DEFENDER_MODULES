@@ -1,4 +1,9 @@
 # IRC-DEFENDER
+![Static Badge](https://img.shields.io/badge/UnrealIRCd-6.2.2%20or%20later-green)
+![Static Badge](https://img.shields.io/badge/Python3-3.10%20or%20later-green)
+![Dynamic JSON Badge](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fadator85%2FIRC_DEFENDER_MODULES%2Fmain%2Fversion.json&query=version&label=Current%20Version)
+![Static Badge](https://img.shields.io/badge/Maintained-Yes-green)
+
 Defender est un service IRC basé sur la sécurité des réseaux IRC ( UnrealIRCD )
 Il permet d'ajouter une sécurité supplémentaire pour vérifier les users connectés au réseau
 en demandant aux user un code de validation.
@@ -9,9 +14,9 @@ Il permet aux opérateurs de gérer efficacement un canal, tout en offrant aux u
         Kick: Expulser un utilisateur du canal.
         Ban: Interdire définitivement l'accès au canal.
         Unban: Lever une interdiction.
-        Op/Deop: Attribuer ou retirer les droits d'opérateur.
+        Op/Deop/Opall/Deopall: Attribuer ou retirer les droits d'opérateur.
         Halfop/Dehalfop: Attribuer ou retirer les droits
-        Voice/Devoice: Attribuer ou retirer les droits de voix.
+        Voice/Devoice/VoiceAll/DevoiceAll: Attribuer ou retirer les droits de voix.
 
     Système de quarantaine:
         Mise en quarantaine: Isoler temporairement un utilisateur dans un canal privé.
@@ -25,6 +30,7 @@ Il permet aux opérateurs de gérer efficacement un canal, tout en offrant aux u
 
     Prérequis:
         - Système d'exploitation Linux (Windows non supporté)
+        - Un server UnrealIRCD corréctement configuré
         - Python version 3.10 ou supérieure
 
     Bash:
