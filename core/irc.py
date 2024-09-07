@@ -110,8 +110,8 @@ class Irc:
             self.ircObject = ircInstance                        # créer une copie de l'instance Irc
             self.__link(self.IrcSocket)                         # établir la connexion au serveur IRC
             self.signal = True                                  # Une variable pour initier la boucle infinie
-            self.load_existing_modules()                        # Charger les modules existant dans la base de données
             self.__join_saved_channels()                        # Join existing channels
+            self.load_existing_modules()                        # Charger les modules existant dans la base de données
 
             while self.signal:
                 try:
@@ -131,6 +131,7 @@ class Irc:
 
                         self.__create_socket()
                         self.__link(self.IrcSocket)
+                        self.__join_saved_channels()
                         self.load_existing_modules()
                         self.RESTART = 0
 
@@ -212,7 +213,8 @@ class Irc:
             writer.send(f":{sid} PROTOCTL SID={sid}\r\n".encode(charset))
             writer.send(f":{sid} SERVER {link} 1 :{info}\r\n".encode(charset))
             writer.send(f":{sid} {nickname} :Reserved for services\r\n".encode(charset))
-            writer.send(f":{sid} UID {nickname} 1 {unixtime} {username} {host} {service_id} * {smodes} * * * :{realname}\r\n".encode(charset))
+            #writer.send(f":{sid} UID {nickname} 1 {unixtime} {username} {host} {service_id} * {smodes} * * * :{realname}\r\n".encode(charset))
+            writer.send(f":{sid} UID {nickname} 1 {unixtime} {username} {host} {service_id} * {smodes} * * fwAAAQ== :{realname}\r\n".encode(charset))
             writer.send(f":{sid} SJOIN {unixtime} {chan} + :{service_id}\r\n".encode(charset))
             writer.send(f":{sid} TKL + Q * {nickname} {host} 0 {unixtime} :Reserved for services\r\n".encode(charset))
 
