@@ -1,7 +1,7 @@
 import time, threading, os, random, socket, hashlib, ipaddress, logging, requests, json, re, ast
 from dataclasses import fields
 from typing import Union, Literal
-from base64 import b64decode
+from base64 import b64decode, b64encode
 from datetime import datetime
 from sqlalchemy import create_engine, Engine, Connection, CursorResult
 from sqlalchemy.sql import text
@@ -677,6 +677,17 @@ class Base:
         except ValueError as ve:
             self.logs.critical(f'This remote ip is not valid : {ve}')
             return None
+
+    # def encode_ip(self, remote_ip_address: str) -> Union[str, None]:
+
+    #     binary_ip = b64encode()
+    #     try:
+    #         decoded_ip = ipaddress.ip_address(binary_ip)
+
+    #         return decoded_ip.exploded
+    #     except ValueError as ve:
+    #         self.logs.critical(f'This remote ip is not valid : {ve}')
+    #         return None
 
     def get_random(self, lenght:int) -> str:
         """

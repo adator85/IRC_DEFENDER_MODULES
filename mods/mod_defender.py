@@ -140,6 +140,9 @@ class Defender():
         self.Base.create_thread(func=self.thread_psutil_scan)
         self.Base.create_thread(func=self.thread_reputation_timer)
 
+        if self.ModConfig.reputation == 1:
+            self.Irc.send2socket(f":{self.Config.SERVICE_ID} SAMODE {self.Config.SALON_JAIL} +{self.Config.SERVICE_UMODES} {self.Config.SERVICE_NICKNAME}")
+
         return None
 
     def __set_commands(self, commands:dict[int, list[str]]) -> None:
@@ -487,6 +490,7 @@ class Defender():
                     if self.get_user_uptime_in_minutes(user.uid) >= reputation_timer and int(user.score) <= int(reputation_seuil):
                         self.Irc.send2socket(f":{service_id} PRIVMSG {dchanlog} :[{color_red} REPUTATION {color_black}] : Action sur {user.nickname} aprés {str(reputation_timer)} minutes d'inactivité")
                         self.Irc.send2socket(f":{service_id} KILL {user.nickname} After {str(reputation_timer)} minutes of inactivity you should reconnect and type the password code ")
+                        self.Irc.send2socket(f":{self.Config.SERVEUR_LINK} REPUTATION {user.ip} 0")
 
                         self.Logs.info(f"Nickname: {user.nickname} KILLED after {str(reputation_timer)} minutes of inactivity")
                         uid_to_clean.append(user.uid)
@@ -945,6 +949,10 @@ class Defender():
             return None
 
         match cmd[1]:
+
+            case 'EOS':
+                if self.Irc.INIT == 0:
+                    self.Irc.send2socket(f":{service_id} SAMODE {self.Config.SALON_JAIL} +{self.Config.SERVICE_UMODES} {self.Config.SERVICE_NICKNAME}")
 
             case 'REPUTATION':
                 # :001 REPUTATION 91.168.141.239 118
