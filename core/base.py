@@ -307,7 +307,7 @@ class Base:
 
     def db_update_core_config(self, module_name:str, dataclassObj: object, param_key:str, param_value: str) -> bool:
 
-        core_table = 'core_config'
+        core_table = self.Config.table_config
         # Check if the param exist
         if not hasattr(dataclassObj, param_key):
             self.logs.error(f"Le parametre {param_key} n'existe pas dans la variable global")
@@ -330,6 +330,10 @@ class Base:
             if updated_rows > 0:
                 setattr(dataclassObj, param_key, self.int_if_possible(param_value))
                 self.logs.debug(f'Parameter updated : {param_key} - {param_value} | Module: {module_name}')
+            else:
+                self.logs.error(f'Parameter NOT updated : {param_key} - {param_value} | Module: {module_name}')
+        else:
+            self.logs.error(f'Parameter and Module do not exist: Param ({param_key}) - Value ({param_value}) | Module ({module_name})')
 
         self.logs.debug(dataclassObj)
 

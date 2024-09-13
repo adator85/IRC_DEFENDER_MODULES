@@ -1,4 +1,4 @@
-import ssl, re, importlib, sys, time, threading, socket
+import ssl, re, importlib, sys, time, threading, socket, traceback
 from ssl import SSLSocket
 from datetime import datetime, timedelta
 from typing import Union, Literal
@@ -176,6 +176,7 @@ class Irc:
             self.Base.logs.critical(f"AttributeError: {atte}")
         except Exception as e:
             self.Base.logs.critical(f"Exception: {e}")
+            self.Base.logs.critical(traceback.print_exc())
 
     def __link(self, writer:Union[socket.socket, SSLSocket]) -> None:
         """Créer le link et envoyer les informations nécessaires pour la 
@@ -274,14 +275,20 @@ class Irc:
                 response = data.decode(self.CHARSET[0]).split()
                 self.cmd(response)
 
-        except UnicodeEncodeError:
+        except UnicodeEncodeError as ue:
             for data in responses:
                 response = data.decode(self.CHARSET[1],'replace').split()
                 self.cmd(response)
-        except UnicodeDecodeError:
+            self.Base.logs.error(f'UnicodeEncodeError: {ue}')
+            self.Base.logs.error(response)
+
+        except UnicodeDecodeError as ud:
             for data in responses:
                 response = data.decode(self.CHARSET[1],'replace').split()
                 self.cmd(response)
+            self.Base.logs.error(f'UnicodeDecodeError: {ud}')
+            self.Base.logs.error(response)
+
         except AssertionError as ae:
             self.Base.logs.error(f"Assertion error : {ae}")
 
@@ -576,7 +583,6 @@ class Irc:
         return None
 
     def thread_check_for_new_version(self, fromuser: str) -> None:
-
         dnickname = self.Config.SERVICE_NICKNAME
 
         if self.Base.check_for_new_version(True):
@@ -587,35 +593,39 @@ class Irc:
         
         return None
 
-    def cmd(self, data:list) -> None:
+    def cmd(self, data: list[str]) -> None:
+        """Parse server response
+
+        Args:
+            data (list[str]): Server response splitted in a list
+        """
         try:
+            original_response: list[str] = data.copy()
 
-            cmd_to_send:list[str] = data.copy()
-            cmd = data.copy()
+            interm_response: list[str] = data.copy()
+            """This the original without first value"""
 
-            cmd_to_debug = data.copy()
-            cmd_to_debug.pop(0)
+            interm_response.pop(0)
 
-            if len(cmd) == 0 or len(cmd) == 1:
-                self.Base.logs.warning(f'Size ({str(len(cmd))}) - {cmd}')
+            if len(original_response) == 0 or len(original_response) == 1:
+                self.Base.logs.warning(f'Size ({str(len(original_response))}) - {original_response}')
                 return False
 
-            # self.debug(cmd_to_debug)
-            if len(data) == 7:
-                if data[2] == 'PRIVMSG' and data[4] == ':auth':
-                    data_copy = data.copy()
+            if len(original_response) == 7:
+                if original_response[2] == 'PRIVMSG' and original_response[4] == ':auth':
+                    data_copy = original_response.copy()
                     data_copy[6] = '**********'
                     self.Base.logs.debug(data_copy)
                 else:
-                    self.Base.logs.debug(data)
+                    self.Base.logs.debug(original_response)
             else:
-                self.Base.logs.debug(data)
+                self.Base.logs.debug(original_response)
 
-            match cmd[0]:
+            match original_response[0]:
 
                 case 'PING':
                     # Sending PONG response to the serveur
-                    pong = str(cmd[1]).replace(':','')
+                    pong = str(original_response[1]).replace(':','')
                     self.send2socket(f"PONG :{pong}")
                     return None
 
@@ -624,19 +634,19 @@ class Irc:
                     # 'PREFIX=(qaohv)~&@%+', 'SID=001', 'MLOCK', 'TS=1703793941', 'EXTSWHOIS']
 
                     # GET SERVER ID HOST
-                    if len(cmd) > 5:
-                        if '=' in cmd[5]:
-                            serveur_hosting_id = str(cmd[5]).split('=')
+                    if len(original_response) > 5:
+                        if '=' in original_response[5]:
+                            serveur_hosting_id = str(original_response[5]).split('=')
                             self.HSID = serveur_hosting_id[1]
                             return False
 
                 case _:
                     pass
 
-            if len(cmd) < 2:
+            if len(original_response) < 2:
                 return False
 
-            match cmd[1]:
+            match original_response[1]:
 
                 case 'SLOG':
                     # self.Base.scan_ports(cmd[7])
@@ -647,20 +657,18 @@ class Irc:
                 case 'REPUTATION':
                     # :001 REPUTATION 91.168.141.239 118
                     try:
-                        # if self.Config.ABUSEIPDB == 1:
-                        #     self.Base.create_thread(self.abuseipdb_scan, (cmd[2], ))
-                        self.first_connexion_ip = cmd[2]
+                        self.first_connexion_ip = original_response[2]
 
                         self.first_score = 0
-                        if str(cmd[3]).find('*') != -1:
+                        if str(original_response[3]).find('*') != -1:
                             # If * available, it means that an ircop changed the repurtation score
                             # means also that the user exist will try to update all users with same IP
-                            self.first_score = int(str(cmd[3]).replace('*',''))
+                            self.first_score = int(str(original_response[3]).replace('*',''))
                             for user in self.User.UID_DB:
                                 if user.remote_ip == self.first_connexion_ip:
                                     user.score_connexion = self.first_score
                         else:
-                            self.first_score = int(cmd[3])
+                            self.first_score = int(original_response[3])
 
                         # Possibilité de déclancher les bans a ce niveau.
                     except IndexError as ie:
@@ -683,7 +691,7 @@ class Irc:
 
                 case 'EOS':
 
-                    hsid = str(cmd[0]).replace(':','')
+                    hsid = str(original_response[0]).replace(':','')
                     if hsid == self.HSID:
                         if self.INIT == 1:
                             current_version = self.Config.current_version
@@ -692,10 +700,6 @@ class Irc:
                                 version = f'{current_version} >>> {latest_version}'
                             else:
                                 version = f'{current_version}'
-
-                            # self.send2socket(f":{self.Config.SERVICE_NICKNAME} SVSJOIN {self.Config.SERVICE_NICKNAME} {self.Config.SERVICE_CHANLOG}")
-                            # self.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.SERVICE_CHANLOG} +o {self.Config.SERVICE_NICKNAME}")
-                            # self.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.SERVICE_CHANLOG} +{self.Config.SERVICE_CMODES}")
 
                             print(f"################### DEFENDER ###################")
                             print(f"#               SERVICE CONNECTE                ")
@@ -728,15 +732,15 @@ class Irc:
                 case _:
                     pass
 
-            if len(cmd) < 3:
+            if len(original_response) < 3:
                 return False
 
-            match cmd[2]:
+            match original_response[2]:
 
                 case 'QUIT':
                     # :001N1WD7L QUIT :Quit: free_znc_1
-                    cmd.pop(0)
-                    uid_who_quit = str(cmd[0]).replace(':', '')
+
+                    uid_who_quit = str(interm_response[0]).replace(':', '')
                     self.User.delete(uid_who_quit)
                     self.Channel.delete_user_from_all_channel(uid_who_quit)
 
@@ -748,10 +752,8 @@ class Irc:
                     # ['@unrealircd.org/geoip=FR;unrealircd.org/', ':001OOU2H3', 'NICK', 'WebIrc', '1703795844']
                     # Changement de nickname
 
-                    # Supprimer la premiere valeur de la liste
-                    cmd.pop(0)
-                    uid = str(cmd[0]).replace(':','')
-                    newnickname = cmd[2]
+                    uid = str(interm_response[0]).replace(':','')
+                    newnickname = interm_response[2]
                     self.User.update(uid, newnickname)
 
                 case 'MODE':
@@ -766,24 +768,24 @@ class Irc:
                     # ':001T6VU3F', '001JGWB2K', '@11ZAAAAAB', 
                     # '001F16WGR', '001X9YMGQ', '*+001DYPFGP', '@00BAAAAAJ', '001AAGOG9', '001FMFVG8', '001DAEEG7', 
                     # '&~G:unknown-users', '"~G:websocket-users', '"~G:known-users', '"~G:webirc-users']
-                    cmd.pop(0)
-                    channel = str(cmd[3]).lower()
-                    len_cmd = len(cmd)
+
+                    channel = str(interm_response[3]).lower()
+                    len_cmd = len(interm_response)
                     list_users:list = []
                     occurence = 0
                     start_boucle = 0
 
                     # Trouver le premier user
                     for i in range(len_cmd):
-                        s: list = re.findall(fr':', cmd[i])
+                        s: list = re.findall(fr':', interm_response[i])
                         if s:
                             occurence += 1
                             if occurence == 2:
                                 start_boucle = i
 
                     # Boucle qui va ajouter l'ensemble des users (UID)
-                    for i in range(start_boucle, len(cmd)):
-                        parsed_UID = str(cmd[i])
+                    for i in range(start_boucle, len(interm_response)):
+                        parsed_UID = str(interm_response[i])
                         # pattern = fr'[:|@|%|\+|~|\*]*'
                         # pattern = fr':'
                         # parsed_UID = re.sub(pattern, '', parsed_UID)
@@ -801,29 +803,31 @@ class Irc:
                 case 'PART':
                     # ['@unrealircd.org/geoip=FR;unrealircd.org/userhost=50d6492c@80.214.73.44;unrealircd.org/userip=50d6492c@80.214.73.44;msgid=YSIPB9q4PcRu0EVfC9ci7y-/mZT0+Gj5FLiDSZshH5NCw;time=2024-08-15T15:35:53.772Z', 
                     # ':001EPFBRD', 'PART', '#welcome', ':WEB', 'IRC', 'Paris']
-                    uid = str(cmd[1]).replace(':','')
-                    channel = str(cmd[3]).lower()
-                    self.Channel.delete_user_from_channel(channel, uid)
+                    try:
+                        uid = str(interm_response[0]).replace(':','')
+                        channel = str(interm_response[2]).lower()
+                        self.Channel.delete_user_from_channel(channel, uid)
 
-                    pass
+                    except IndexError as ie:
+                        self.Base.logs.error(f'Index Error: {ie}')
 
                 case 'UID':
                     # ['@s2s-md/geoip=cc=GB|cd=United\\sKingdom|asn=16276|asname=OVH\\sSAS;s2s-md/tls_cipher=TLSv1.3-TLS_CHACHA20_POLY1305_SHA256;s2s-md/creationtime=1721564601', 
                     # ':001', 'UID', 'albatros', '0', '1721564597', 'albatros', 'vps-91b2f28b.vps.ovh.net', 
                     # '001HB8G04', '0', '+iwxz', 'Clk-A62F1D18.vps.ovh.net', 'Clk-A62F1D18.vps.ovh.net', 'MyZBwg==', ':...']
-                    if 'webirc' in cmd[0]:
+                    if 'webirc' in original_response[0]:
                         isWebirc = True
                     else:
                         isWebirc = False
 
-                    uid = str(cmd[8])
-                    nickname = str(cmd[3])
-                    username = str(cmd[6])
-                    hostname = str(cmd[7])
-                    umodes = str(cmd[10])
-                    vhost = str(cmd[11])
+                    uid = str(original_response[8])
+                    nickname = str(original_response[3])
+                    username = str(original_response[6])
+                    hostname = str(original_response[7])
+                    umodes = str(original_response[10])
+                    vhost = str(original_response[11])
                     if not 'S' in umodes:
-                        remote_ip = self.Base.decode_ip(str(cmd[13]))
+                        remote_ip = self.Base.decode_ip(str(original_response[13]))
                     else:
                         remote_ip = '127.0.0.1'
 
@@ -845,18 +849,19 @@ class Irc:
                     )
 
                     for classe_name, classe_object in self.loaded_classes.items():
-                        classe_object.cmd(cmd_to_send)
+                        classe_object.cmd(original_response)
 
                 case 'PRIVMSG':
                     try:
                         # Supprimer la premiere valeur
-                        cmd.pop(0)
+                        cmd = interm_response.copy()
+
                         get_uid_or_nickname = str(cmd[0].replace(':',''))
                         user_trigger = self.User.get_nickname(get_uid_or_nickname)
                         dnickname = self.Config.SERVICE_NICKNAME
 
                         if len(cmd) == 6:
-                            if cmd[1] == 'PRIVMSG' and str(cmd[3]).replace('.','') == ':auth':
+                            if cmd[1] == 'PRIVMSG' and str(cmd[3]).replace(self.Config.SERVICE_PREFIX,'') == ':auth':
                                 cmd_copy = cmd.copy()
                                 cmd_copy[5] = '**********'
                                 self.Base.logs.info(cmd_copy)
@@ -913,11 +918,11 @@ class Irc:
                                     return False
 
                                 if not arg[0].lower() in self.commands:
-                                    self.debug(f"This command {arg[0]} is not available")
+                                    self.Base.logs.debug(f"This command {arg[0]} sent by {user_trigger} is not available")
                                     return False
 
                                 cmd_to_send = convert_to_string.replace(':','')
-                                self.Base.log_cmd(self.User.get_nickname(user_trigger), cmd_to_send)
+                                self.Base.log_cmd(user_trigger, cmd_to_send)
 
                                 fromchannel = None
                                 if len(arg) >= 2:
@@ -931,15 +936,26 @@ class Irc:
                 case _:
                     pass
 
-            if cmd[2] != 'UID':
+            if original_response[2] != 'UID':
                 # Envoyer la commande aux classes dynamiquement chargées
                 for classe_name, classe_object in self.loaded_classes.items():
-                    classe_object.cmd(cmd_to_send)
+                    classe_object.cmd(original_response)
 
         except IndexError as ie:
-            self.Base.logs.error(f"{ie} / {cmd} / length {str(len(cmd))}")
+            self.Base.logs.error(f"{ie} / {original_response} / length {str(len(original_response))}")
 
-    def _hcmds(self, user: str, channel: Union[str, None], cmd:list, fullcmd: list = []) -> None:
+    def _hcmds(self, user: str, channel: Union[str, None], cmd: list, fullcmd: list = []) -> None:
+        """_summary_
+
+        Args:
+            user (str): The user who sent the query
+            channel (Union[str, None]): If the command contain the channel
+            cmd (list): The defender cmd
+            fullcmd (list, optional): The full list of the cmd coming from PRIVMS. Defaults to [].
+
+        Returns:
+            None: Nothing to return
+        """
 
         fromuser = self.User.get_nickname(user)                                   # Nickname qui a lancé la commande
         uid = self.User.get_uid(fromuser)                                         # Récuperer le uid de l'utilisateur
@@ -1285,10 +1301,6 @@ class Irc:
                 results = self.Base.db_execute_query(f'SELECT module_name FROM {self.Config.table_module}')
                 results = results.fetchall()
 
-                # if len(results) == 0:
-                #     self.send2socket(f":{dnickname} NOTICE {fromuser} :There is no module loaded")
-                #     return False
-
                 found = False
 
                 for module in all_modules:
@@ -1302,9 +1314,6 @@ class Irc:
                         self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.CONFIG_COLOR['rouge']}Not Loaded{self.Config.CONFIG_COLOR['nogc']}")
 
                     found = False
-
-                # for r in results:
-                #     self.send2socket(f":{dnickname} NOTICE {fromuser} :{r[0]} - {self.Config.CONFIG_COLOR['verte']}Loaded{self.Config.CONFIG_COLOR['nogc']}")
 
             case 'show_timers':
 

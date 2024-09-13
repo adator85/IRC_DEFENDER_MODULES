@@ -940,7 +940,7 @@ class Defender():
         except ValueError as ve:
             self.Logs.error(f"Thread_cloudfilt_scan Error : {ve}")
 
-    def cmd(self, data:list) -> None:
+    def cmd(self, data: list) -> None:
 
         service_id = self.Config.SERVICE_ID                 # Defender serveur id
         cmd = list(data).copy()
