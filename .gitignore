@@ -2,7 +2,7 @@
 db/
 logs/
 __pycache__/
+mods/mod_jsonrpc.py
 configuration.json
 *.log
 test.py
-mods/mod_jsonrpc.py
