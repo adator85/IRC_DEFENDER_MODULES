@@ -3,6 +3,6 @@ db/
 logs/
 __pycache__/
 configuration.json
-install.log
+*.log
 test.py
-# mods/mod_ia.py
+mods/mod_jsonrpc.py
