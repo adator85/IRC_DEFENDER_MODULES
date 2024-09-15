@@ -816,10 +816,9 @@ class Irc:
                     # ['@s2s-md/geoip=cc=GB|cd=United\\sKingdom|asn=16276|asname=OVH\\sSAS;s2s-md/tls_cipher=TLSv1.3-TLS_CHACHA20_POLY1305_SHA256;s2s-md/creationtime=1721564601', 
                     # ':001', 'UID', 'albatros', '0', '1721564597', 'albatros', 'vps-91b2f28b.vps.ovh.net', 
                     # '001HB8G04', '0', '+iwxz', 'Clk-A62F1D18.vps.ovh.net', 'Clk-A62F1D18.vps.ovh.net', 'MyZBwg==', ':...']
-                    if 'webirc' in original_response[0]:
-                        isWebirc = True
-                    else:
-                        isWebirc = False
+
+                    isWebirc = True if 'webirc' in original_response[0] else False
+                    isWebsocket = True if 'websocket' in original_response[0] else False
 
                     uid = str(original_response[8])
                     nickname = str(original_response[3])
@@ -832,6 +831,13 @@ class Irc:
                     else:
                         remote_ip = '127.0.0.1'
 
+                    # extract realname
+                    realname_list = []
+                    for i in range(14, len(original_response)):
+                        realname_list.append(original_response[i])
+
+                    realname = ' '.join(realname_list)[1:]
+
                     score_connexion = self.first_score
 
                     self.User.insert(
@@ -839,10 +845,12 @@ class Irc:
                             uid=uid,
                             nickname=nickname,
                             username=username,
+                            realname=realname,
                             hostname=hostname,
                             umodes=umodes,
                             vhost=vhost,
                             isWebirc=isWebirc,
+                            isWebsocket=isWebsocket,
                             remote_ip=remote_ip,
                             score_connexion=score_connexion,
                             connexion_datetime=datetime.now()
@@ -1342,7 +1350,7 @@ class Irc:
 
             case 'show_users':
                 for db_user in self.User.UID_DB:
-                    self.send2socket(f":{dnickname} NOTICE {fromuser} :UID : {db_user.uid} - isWebirc: {db_user.isWebirc} - Nickname: {db_user.nickname} - Connection: {db_user.connexion_datetime}")
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :UID : {db_user.uid} - isWebirc: {db_user.isWebirc} - isWebSocket: {db_user.isWebsocket} - Nickname: {db_user.nickname} - Connection: {db_user.connexion_datetime}")
 
             case 'show_admins':
                 for db_admin in self.Admin.UID_ADMIN_DB:

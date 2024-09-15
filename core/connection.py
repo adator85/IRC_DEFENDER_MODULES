@@ -7,13 +7,15 @@ from typing import Union
 
 class Connection:
 
-    def __init__(self, server_port: int, nickname: str, username: str, channels:list[str], CloneObject: Clones, ssl:bool = False) -> None:
+    def __init__(self, server_port: int, nickname: str, username: str, realname: str, channels:list[str], CloneObject: Clones, ssl:bool = False) -> None:
 
         self.Config = Config().ConfigObject
         self.Base = Base(self.Config)
         self.IrcSocket: Union[socket.socket, SSLSocket] = None
         self.nickname = nickname
         self.username = username
+        self.realname = realname
+        self.chanlog = '#clones'
         self.channels:list[str] = channels
         self.CHARSET = ['utf-8', 'iso-8859-1']
         self.Clones = CloneObject
@@ -97,10 +99,11 @@ class Connection:
         try:
             nickname = self.nickname
             username = self.username
+            realname = self.realname
 
             # Envoyer un message d'identification
             writer.send(f"USER {nickname} {username} {username} {nickname} {username} :{username}\r\n".encode('utf-8'))
-            writer.send(f"USER {username} {username} {username} :{username}\r\n".encode('utf-8'))
+            writer.send(f"USER {username} {username} {username} :{realname}\r\n".encode('utf-8'))
             writer.send(f"NICK {nickname}\r\n".encode('utf-8'))
 
             self.Base.logs.debug('Link information sent to the server')
@@ -162,6 +165,7 @@ class Connection:
             for data in cmd:
                 response = data.decode(self.CHARSET[0]).split()
                 self.signal = self.currentCloneObject.alive
+                current_clone_nickname = self.currentCloneObject.nickname
                 # print(response)
 
                 match response[0]:
@@ -176,6 +180,7 @@ class Connection:
 
                 match response[1]:
                     case '376':
+                        self.currentCloneObject.connected = True
                         for channel in self.channels:
                             self.send2socket(f"JOIN {channel}")
                         return None
@@ -184,6 +189,14 @@ class Connection:
                         self.Base.logs.debug(f'{self.currentCloneObject.nickname} - {self.currentCloneObject.alive}')
                         fullname = str(response[0]).replace(':', '')
                         nickname = fullname.split('!')[0].replace(':','')
+
+                        if response[2] == current_clone_nickname:
+                            message = []
+                            for i in range(3, len(response)):
+                                    message.append(response[i])
+                            final_message = ' '.join(message)
+                            self.send2socket(f"PRIVMSG {self.chanlog} :{fullname} => {final_message[1:]}")
+
                         if nickname == self.Config.SERVICE_NICKNAME:
                             command = str(response[3]).replace(':','')
 

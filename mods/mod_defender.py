@@ -44,11 +44,13 @@ class Defender():
         nickname: str
         username: str
         hostname: str
+        realname: str
         umodes: str
         vhost: str
         ip: str
         score: int
         isWebirc: bool
+        isWebsocket: bool
         secret_code: str
         connected_datetime: str
         updated_datetime: str
@@ -611,13 +613,14 @@ class Defender():
         """local_scan
 
         Args:
-            remote_ip (str): _description_
+            userModel (UserModel): _description_
         """
         User = userModel
         remote_ip = User.remote_ip
         username = User.username
         hostname = User.hostname
         nickname = User.nickname
+        fullname = f'{nickname}!{username}@{hostname}'
 
         if remote_ip in self.Config.WHITELISTED_IP:
             return None
@@ -631,14 +634,13 @@ class Defender():
                 connection = (remote_ip, self.Base.int_if_possible(port))
                 newSocket.connect(connection)
 
-                fullname = f'{nickname}!{username}@{hostname}'
-
                 self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}PROXY_SCAN{self.Config.CONFIG_COLOR['noire']} ] {fullname} ({remote_ip}) :     Port [{str(port)}] ouvert sur l'adresse ip [{remote_ip}]")
                 # print(f"=======> Le port {str(port)} est ouvert !!")
                 self.Base.running_sockets.append(newSocket)
                 # print(newSocket)
                 newSocket.shutdown(socket.SHUT_RDWR)
                 newSocket.close()
+
             except (socket.timeout, ConnectionRefusedError):
                 self.Logs.info(f"Le port {remote_ip}:{str(port)} est fermé")
             except AttributeError as ae:
@@ -670,10 +672,10 @@ class Defender():
             self.Logs.warning(f"thread_local_scan Error : {ve}")
 
     def get_ports_connexion(self, userModel: User.UserModel) -> list[int]:
-        """psutil_scan for Linux
+        """psutil_scan for Linux (should be run on the same location as the unrealircd server)
 
         Args:
-            remote_ip (str): The remote ip address
+            userModel (UserModel): The User Model Object
 
         Returns:
             list[int]: list of ports
@@ -693,6 +695,9 @@ class Defender():
 
             matching_ports = [conn.raddr.port for conn in connections if conn.raddr and conn.raddr.ip == remote_ip]
             self.Logs.info(f"Connexion of {fullname} ({remote_ip}) using ports : {str(matching_ports)}")
+
+            if matching_ports:
+                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}PROXY_SCAN{self.Config.CONFIG_COLOR['noire']} ] {fullname} ({remote_ip}) : is using ports {matching_ports}")
 
             return matching_ports
 
@@ -1061,9 +1066,9 @@ class Defender():
                             currentDateTime = self.Base.get_datetime()
                             self.reputation_insert(
                                 self.ReputationModel(
-                                    uid=_User.uid, nickname=_User.nickname, username=_User.username, hostname=_User.hostname,
-                                    umodes=_User.umodes, vhost=_User.vhost, ip=_User.remote_ip, score=_User.score_connexion,
-                                    secret_code=self.Base.get_random(8), isWebirc=_User.isWebirc, connected_datetime=currentDateTime,
+                                    uid=_User.uid, nickname=_User.nickname, username=_User.username, realname=_User.realname, 
+                                    hostname=_User.hostname, umodes=_User.umodes, vhost=_User.vhost, ip=_User.remote_ip, score=_User.score_connexion,
+                                    secret_code=self.Base.get_random(8), isWebirc=_User.isWebirc, isWebsocket=_User.isWebsocket, connected_datetime=currentDateTime,
                                     updated_datetime=currentDateTime
                                 )
                             )
@@ -1085,6 +1090,9 @@ class Defender():
                         parsed_UID = re.sub(pattern, '', parsed_UID)
 
                         get_reputation = self.reputation_get_Reputation(parsed_UID)
+
+                        self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b ~security-group:unknown-users")
+                        self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +eee ~security-group:webirc-users ~security-group:known-users ~security-group:websocket-users")
 
                         if not get_reputation is None:
                             isWebirc = get_reputation.isWebirc
@@ -1285,9 +1293,7 @@ class Defender():
                                 for chan in self.Channel.UID_CHANNEL_DB:
                                     if chan.name != jail_chan:
                                         self.Irc.send2socket(f":{service_id} MODE {chan.name} +b ~security-group:unknown-users")
-                                        self.Irc.send2socket(f":{service_id} MODE {chan.name} +e ~security-group:webirc-users")
-                                        self.Irc.send2socket(f":{service_id} MODE {chan.name} +e ~security-group:known-users")
-                                        self.Irc.send2socket(f":{service_id} MODE {chan.name} +e ~security-group:websocket-users")
+                                        self.Irc.send2socket(f":{service_id} MODE {chan.name} +eee ~security-group:webirc-users ~security-group:known-users ~security-group:websocket-users")
 
                             self.Base.db_query_channel('add', self.module_name, jail_chan)
 
@@ -1623,10 +1629,12 @@ class Defender():
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : UID              : {UserObject.uid}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : NICKNAME         : {UserObject.nickname}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : USERNAME         : {UserObject.username}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : REALNAME         : {UserObject.realname}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : HOSTNAME         : {UserObject.hostname}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : VHOST            : {UserObject.vhost}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : IP               : {UserObject.remote_ip}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : WebIrc           : {UserObject.isWebirc}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : WebWebsocket     : {UserObject.isWebsocket}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : REPUTATION       : {UserObject.score_connexion}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : MODES            : {UserObject.umodes}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : CONNECTION TIME  : {UserObject.connexion_datetime}')
