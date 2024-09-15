@@ -697,7 +697,7 @@ class Defender():
             self.Logs.info(f"Connexion of {fullname} ({remote_ip}) using ports : {str(matching_ports)}")
 
             if matching_ports:
-                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}PROXY_SCAN{self.Config.CONFIG_COLOR['noire']} ] {fullname} ({remote_ip}) : is using ports {matching_ports}")
+                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}PSUTIL_SCAN{self.Config.CONFIG_COLOR['noire']} ] {fullname} ({remote_ip}) : is using ports {matching_ports}")
 
             return matching_ports
 
