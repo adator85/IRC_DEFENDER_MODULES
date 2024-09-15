@@ -140,11 +140,12 @@ class Clone():
                     self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
                     time.sleep(wait)
 
-    def generate_names(self) -> tuple[str, str]:
+    def generate_names(self) -> tuple[str, str, str]:
         try:
             fake = faker.Faker('en_GB')
             nickname = fake.first_name()
             username = fake.last_name()
+            hostname = fake.domain_name(3)
 
             if self.Clone.exists(nickname=nickname):
                 caracteres = '0123456789'
@@ -166,7 +167,7 @@ class Clone():
             #     nickname = nickname + str(randomize)
             #     self.ModConfig.clone_nicknames.append(nickname)
 
-            return (nickname, username)
+            return (nickname, username, hostname)
 
         except AttributeError as ae:
             self.Logs.error(f'Attribute Error : {ae}')
@@ -203,20 +204,33 @@ class Clone():
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone kill [all | nickname]')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone join [all | nickname] #channel')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone list')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone shadow')
 
                 match option:
+
+                    case 'shadow':
+                        try:
+                            fake = faker.Faker('en_GB')
+                            for clone in self.Clone.UID_CLONE_DB:
+                                hostname = fake.domain_name(3)
+                                self.Irc.send2socket(f':{dnickname} CHGHOST {clone.nickname} {hostname}')
+
+                        except Exception as err:
+                            self.Logs.error(f'{err}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone shadow')
 
                     case 'connect':
                         try:
                             number_of_clones = int(cmd[2])
                             for i in range(number_of_clones):
-                                nickname, username = self.generate_names()
+                                nickname, username, hostname = self.generate_names()
                                 self.Base.create_thread(
                                     self.thread_create_clones,
                                     (nickname, username, [], 6697, True)
                                     )
 
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{str(number_of_clones)} clones joined the network')
+
                         except Exception as err:
                             self.Logs.error(f'{err}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone connect [number of clone you want to connect]')
@@ -302,3 +316,4 @@ class Clone():
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone join [all | nickname] #channel')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone say [clone_nickname] #channel [message]')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone list')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone shadow')
