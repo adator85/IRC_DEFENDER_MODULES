@@ -298,8 +298,7 @@ class Clone():
                         case 'list':
                             try:
                                 for clone_name in self.Clone.UID_CLONE_DB:
-                                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> {clone_name.nickname} | {clone_name.username}')
-                                pass
+                                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> Nickname: {clone_name.nickname} | Username: {clone_name.username}')
                             except Exception as err:
                                 self.Logs.error(f'{err}')
 

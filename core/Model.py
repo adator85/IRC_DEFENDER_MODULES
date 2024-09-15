@@ -18,6 +18,7 @@ class User:
         isWebsocket: bool
         remote_ip: str
         score_connexion: int
+        geoip: str = None
         connexion_datetime: datetime = field(default=datetime.now())
 
     UID_DB: list[UserModel] = []

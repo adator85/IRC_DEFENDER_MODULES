@@ -1633,6 +1633,7 @@ class Defender():
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : HOSTNAME         : {UserObject.hostname}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : VHOST            : {UserObject.vhost}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : IP               : {UserObject.remote_ip}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Country          : {UserObject.geoip}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : WebIrc           : {UserObject.isWebirc}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : WebWebsocket     : {UserObject.isWebsocket}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : REPUTATION       : {UserObject.score_connexion}')

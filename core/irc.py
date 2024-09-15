@@ -591,7 +591,7 @@ class Irc:
             self.send2socket(f':{dnickname} NOTICE {fromuser} : Please run (git pull origin main) in the current folder')
         else:
             self.send2socket(f':{dnickname} NOTICE {fromuser} : You have the latest version of defender')
-        
+
         return None
 
     def cmd(self, data: list[str]) -> None:
@@ -813,52 +813,67 @@ class Irc:
                         self.Base.logs.error(f'Index Error: {ie}')
 
                 case 'UID':
-                    # ['@s2s-md/geoip=cc=GB|cd=United\\sKingdom|asn=16276|asname=OVH\\sSAS;s2s-md/tls_cipher=TLSv1.3-TLS_CHACHA20_POLY1305_SHA256;s2s-md/creationtime=1721564601', 
-                    # ':001', 'UID', 'albatros', '0', '1721564597', 'albatros', 'vps-91b2f28b.vps.ovh.net', 
-                    # '001HB8G04', '0', '+iwxz', 'Clk-A62F1D18.vps.ovh.net', 'Clk-A62F1D18.vps.ovh.net', 'MyZBwg==', ':...']
+                    try:
+                        # ['@s2s-md/geoip=cc=GB|cd=United\\sKingdom|asn=16276|asname=OVH\\sSAS;s2s-md/tls_cipher=TLSv1.3-TLS_CHACHA20_POLY1305_SHA256;s2s-md/creationtime=1721564601', 
+                        # ':001', 'UID', 'albatros', '0', '1721564597', 'albatros', 'vps-91b2f28b.vps.ovh.net', 
+                        # '001HB8G04', '0', '+iwxz', 'Clk-A62F1D18.vps.ovh.net', 'Clk-A62F1D18.vps.ovh.net', 'MyZBwg==', ':...']
 
-                    isWebirc = True if 'webirc' in original_response[0] else False
-                    isWebsocket = True if 'websocket' in original_response[0] else False
+                        isWebirc = True if 'webirc' in original_response[0] else False
+                        isWebsocket = True if 'websocket' in original_response[0] else False
 
-                    uid = str(original_response[8])
-                    nickname = str(original_response[3])
-                    username = str(original_response[6])
-                    hostname = str(original_response[7])
-                    umodes = str(original_response[10])
-                    vhost = str(original_response[11])
-                    if not 'S' in umodes:
-                        remote_ip = self.Base.decode_ip(str(original_response[13]))
-                    else:
-                        remote_ip = '127.0.0.1'
+                        uid = str(original_response[8])
+                        nickname = str(original_response[3])
+                        username = str(original_response[6])
+                        hostname = str(original_response[7])
+                        umodes = str(original_response[10])
+                        vhost = str(original_response[11])
 
-                    # extract realname
-                    realname_list = []
-                    for i in range(14, len(original_response)):
-                        realname_list.append(original_response[i])
+                        if not 'S' in umodes:
+                            remote_ip = self.Base.decode_ip(str(original_response[13]))
+                        else:
+                            remote_ip = '127.0.0.1'
 
-                    realname = ' '.join(realname_list)[1:]
+                        # extract realname
+                        realname_list = []
+                        for i in range(14, len(original_response)):
+                            realname_list.append(original_response[i])
 
-                    score_connexion = self.first_score
+                        realname = ' '.join(realname_list)[1:]
 
-                    self.User.insert(
-                        self.User.UserModel(
-                            uid=uid,
-                            nickname=nickname,
-                            username=username,
-                            realname=realname,
-                            hostname=hostname,
-                            umodes=umodes,
-                            vhost=vhost,
-                            isWebirc=isWebirc,
-                            isWebsocket=isWebsocket,
-                            remote_ip=remote_ip,
-                            score_connexion=score_connexion,
-                            connexion_datetime=datetime.now()
+                        # Extract Geoip information
+                        pattern = r'^.*geoip=cc=(\S{2}).*$'
+                        geoip_match = re.match(pattern, original_response[0])
+
+                        if geoip_match:
+                            geoip = geoip_match.group(1)
+                        else:
+                            geoip = None
+
+                        score_connexion = self.first_score
+
+                        self.User.insert(
+                            self.User.UserModel(
+                                uid=uid,
+                                nickname=nickname,
+                                username=username,
+                                realname=realname,
+                                hostname=hostname,
+                                umodes=umodes,
+                                vhost=vhost,
+                                isWebirc=isWebirc,
+                                isWebsocket=isWebsocket,
+                                remote_ip=remote_ip,
+                                geoip=geoip,
+                                score_connexion=score_connexion,
+                                connexion_datetime=datetime.now()
+                            )
                         )
-                    )
 
-                    for classe_name, classe_object in self.loaded_classes.items():
-                        classe_object.cmd(original_response)
+                        for classe_name, classe_object in self.loaded_classes.items():
+                            classe_object.cmd(original_response)
+
+                    except Exception as err:
+                        self.Base.logs.error(f'General Error: {err}')
 
                 case 'PRIVMSG':
                     try:
