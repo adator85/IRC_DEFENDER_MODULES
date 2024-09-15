@@ -4,6 +4,7 @@ from typing import Union
 import re, socket, psutil, requests, json, time
 from sys import exit
 from core.irc import Irc
+from core.Model import User
 
 #   Le module crée devra réspecter quelques conditions
 #       1. Le nom de la classe devra toujours s'appeler comme le module. Exemple => nom de class Defender | nom du module mod_defender
@@ -107,12 +108,19 @@ class Defender():
         # self.join_saved_channels()
 
         self.timeout = self.Config.API_TIMEOUT
+
+        self.abuseipdb_UserModel: list[User.UserModel] = []
+        self.freeipapi_UserModel: list[User.UserModel] = []
+        self.cloudfilt_UserModel: list[User.UserModel] = []
+        self.psutil_UserModel: list[User.UserModel]    = []
+        self.localscan_UserModel: list[User.UserModel] = []
+
         # Listes qui vont contenir les ip a scanner avec les différentes API
-        self.freeipapi_remote_ip:list = []
-        self.cloudfilt_remote_ip:list = []
-        self.abuseipdb_remote_ip:list = []
-        self.psutil_remote_ip:list    = []
-        self.localscan_remote_ip:list = []
+        # self.freeipapi_remote_ip:list = []
+        # self.cloudfilt_remote_ip:list = []
+        # self.abuseipdb_remote_ip:list = []
+        # self.psutil_remote_ip:list    = []
+        # self.localscan_remote_ip:list = []
 
         # Variables qui indique que les threads sont en cours d'éxecutions
         self.abuseipdb_isRunning:bool       = True
@@ -605,23 +613,33 @@ class Defender():
 
         return None
 
-    def scan_ports(self, remote_ip: str) -> None:
+    def scan_ports(self, userModel: User.UserModel) -> None:
         """local_scan
 
         Args:
             remote_ip (str): _description_
         """
+        User = userModel
+        remote_ip = User.remote_ip
+        username = User.username
+        hostname = User.hostname
+        nickname = User.nickname
+
         if remote_ip in self.Config.WHITELISTED_IP:
             return None
 
         for port in self.Config.PORTS_TO_SCAN:
-            newSocket = ''
-            newSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM or socket.SOCK_NONBLOCK)
-            newSocket.settimeout(0.5)
             try:
+                newSocket = ''
+                newSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM or socket.SOCK_NONBLOCK)
+                newSocket.settimeout(0.5)
+
                 connection = (remote_ip, self.Base.int_if_possible(port))
                 newSocket.connect(connection)
-                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}PROXY_SCAN{self.Config.CONFIG_COLOR['noire']} ] :     Port [{str(port)}] ouvert sur l'adresse ip [{remote_ip}]")
+
+                fullname = f'{nickname}!{username}@{hostname}'
+
+                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}PROXY_SCAN{self.Config.CONFIG_COLOR['noire']} ] {fullname} ({remote_ip}) :     Port [{str(port)}] ouvert sur l'adresse ip [{remote_ip}]")
                 # print(f"=======> Le port {str(port)} est ouvert !!")
                 self.Base.running_sockets.append(newSocket)
                 # print(newSocket)
@@ -637,21 +655,19 @@ class Defender():
                 # newSocket.shutdown(socket.SHUT_RDWR)
                 newSocket.close()
                 self.Logs.info('=======> Fermeture de la socket')
-        
-        pass
 
     def thread_local_scan(self) -> None:
         try:
             while self.localscan_isRunning:
 
                 list_to_remove:list = []
-                for ip in self.localscan_remote_ip:
-                    self.scan_ports(ip)
-                    list_to_remove.append(ip)
+                for user in self.localscan_UserModel:
+                    self.scan_ports(user)
+                    list_to_remove.append(user)
                     time.sleep(1)
 
-                for ip_to_remove in list_to_remove:
-                    self.localscan_remote_ip.remove(ip_to_remove)
+                for user_model in list_to_remove:
+                    self.localscan_UserModel.remove(user_model)
 
                 time.sleep(1)
 
@@ -659,7 +675,7 @@ class Defender():
         except ValueError as ve:
             self.Logs.warning(f"thread_local_scan Error : {ve}")
 
-    def get_ports_connexion(self, remote_ip: str) -> list[int]:
+    def get_ports_connexion(self, userModel: User.UserModel) -> list[int]:
         """psutil_scan for Linux
 
         Args:
@@ -669,13 +685,20 @@ class Defender():
             list[int]: list of ports
         """
         try:
+            User = userModel
+            remote_ip = User.remote_ip
+            username = User.username
+            hostname = User.hostname
+            nickname = User.nickname
+
             if remote_ip in self.Config.WHITELISTED_IP:
                 return None
 
             connections = psutil.net_connections(kind='inet')
+            fullname = f'{nickname}!{username}@{hostname}'
 
             matching_ports = [conn.raddr.port for conn in connections if conn.raddr and conn.raddr.ip == remote_ip]
-            self.Logs.info(f"Connexion of {remote_ip} using ports : {str(matching_ports)}")
+            self.Logs.info(f"Connexion of {fullname} ({remote_ip}) using ports : {str(matching_ports)}")
 
             return matching_ports
 
@@ -688,13 +711,13 @@ class Defender():
             while self.psutil_isRunning:
 
                 list_to_remove:list = []
-                for ip in self.psutil_remote_ip:
-                    self.get_ports_connexion(ip)
-                    list_to_remove.append(ip)
+                for user in self.psutil_UserModel:
+                    self.get_ports_connexion(user)
+                    list_to_remove.append(user)
                     time.sleep(1)
 
-                for ip_to_remove in list_to_remove:
-                    self.psutil_remote_ip.remove(ip_to_remove)
+                for user_model in list_to_remove:
+                    self.psutil_UserModel.remove(user_model)
 
                 time.sleep(1)
 
@@ -702,16 +725,22 @@ class Defender():
         except ValueError as ve:
             self.Logs.warning(f"thread_psutil_scan Error : {ve}")
 
-    def abuseipdb_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
+    def abuseipdb_scan(self, userModel: User.UserModel) -> Union[dict[str, any], None]:
         """Analyse l'ip avec AbuseIpDB
            Cette methode devra etre lancer toujours via un thread ou un timer.
         Args:
-            remote_ip (_type_): l'ip a analyser
+            userModel (UserModel): l'objet User qui contient l'ip
 
         Returns:
             dict[str, any] | None: les informations du provider
             keys : 'score', 'country', 'isTor', 'totalReports'
         """
+        User = userModel
+        remote_ip = User.remote_ip
+        username = User.username
+        hostname = User.hostname
+        nickname = User.nickname
+
         if remote_ip in self.Config.WHITELISTED_IP:
             return None
         if self.ModConfig.abuseipdb_scan == 0:
@@ -731,11 +760,12 @@ class Defender():
             'Key': self.abuseipdb_key
         }
 
-        response = requests.request(method='GET', url=url, headers=headers, params=querystring, timeout=self.timeout)
-
-        # Formatted output
-        decodedResponse = json.loads(response.text)
         try:
+            response = requests.request(method='GET', url=url, headers=headers, params=querystring, timeout=self.timeout)
+
+            # Formatted output
+            decodedResponse = json.loads(response.text)
+
             if not 'data' in decodedResponse:
                 return None
 
@@ -751,7 +781,10 @@ class Defender():
             color_red = self.Config.CONFIG_COLOR['rouge']
             color_black = self.Config.CONFIG_COLOR['noire']
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}ABUSEIPDB_SCAN{color_black} ] : Connexion de {remote_ip} ==> Score: {str(result['score'])} | Country : {result['country']} | Tor : {str(result['isTor'])} | Total Reports : {str(result['totalReports'])}")
+            # pseudo!ident@host
+            fullname = f'{nickname}!{username}@{hostname}'
+
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}ABUSEIPDB_SCAN{color_black} ] : Connexion de {fullname} ({remote_ip}) ==> Score: {str(result['score'])} | Country : {result['country']} | Tor : {str(result['isTor'])} | Total Reports : {str(result['totalReports'])}")
 
             if result['isTor']:
                 self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} {self.Config.GLINE_DURATION} This server do not allow Tor connexions {str(result['isTor'])} - Detected by Abuseipdb")
@@ -767,20 +800,22 @@ class Defender():
             self.Logs.error(f"AbuseIpDb Timeout : {rt}")
         except requests.ConnectionError as ce:
             self.Logs.error(f"AbuseIpDb Connection Error : {ce}")
+        except Exception as err:
+            self.Logs.error(f"General Error Abuseipdb : {err}")
 
     def thread_abuseipdb_scan(self) -> None:
         try:
 
             while self.abuseipdb_isRunning:
 
-                list_to_remove:list = []
-                for ip in self.abuseipdb_remote_ip:
-                    self.abuseipdb_scan(ip)
-                    list_to_remove.append(ip)
+                list_to_remove: list = []
+                for user in self.abuseipdb_UserModel:
+                    self.abuseipdb_scan(user)
+                    list_to_remove.append(user)
                     time.sleep(1)
 
-                for ip_to_remove in list_to_remove:
-                    self.abuseipdb_remote_ip.remove(ip_to_remove)
+                for user_model in list_to_remove:
+                    self.abuseipdb_UserModel.remove(user_model)
 
                 time.sleep(1)
 
@@ -788,7 +823,7 @@ class Defender():
         except ValueError as ve:
                 self.Logs.error(f"thread_abuseipdb_scan Error : {ve}")
 
-    def freeipapi_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
+    def freeipapi_scan(self, userModel: User.UserModel) -> Union[dict[str, any], None]:
         """Analyse l'ip avec Freeipapi
            Cette methode devra etre lancer toujours via un thread ou un timer.
         Args:
@@ -798,6 +833,12 @@ class Defender():
             dict[str, any] | None: les informations du provider
             keys : 'countryCode', 'isProxy'
         """
+        User = userModel
+        remote_ip = User.remote_ip
+        username = User.username
+        hostname = User.hostname
+        nickname = User.nickname
+
         if remote_ip in self.Config.WHITELISTED_IP:
             return None
         if self.ModConfig.freeipapi_scan == 0:
@@ -814,11 +855,12 @@ class Defender():
             'Accept': 'application/json',
         }
 
-        response = requests.request(method='GET', url=url, headers=headers, timeout=self.timeout)
-
-        # Formatted output
-        decodedResponse = json.loads(response.text)
         try:
+            response = requests.request(method='GET', url=url, headers=headers, timeout=self.timeout)
+
+            # Formatted output
+            decodedResponse = json.loads(response.text)
+
             status_code = response.status_code
             if status_code == 429:
                 self.Logs.warning(f'Too Many Requests - The rate limit for the API has been exceeded.')
@@ -832,7 +874,10 @@ class Defender():
                 'isProxy': decodedResponse['isProxy'] if 'isProxy' in decodedResponse else None
             }
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {remote_ip} ==> Proxy: {str(result['isProxy'])} | Country : {str(result['countryCode'])}")
+            # pseudo!ident@host
+            fullname = f'{nickname}!{username}@{hostname}'
+
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}FREEIPAPI_SCAN{color_black} ] : Connexion de {fullname} ({remote_ip}) ==> Proxy: {str(result['isProxy'])} | Country : {str(result['countryCode'])}")
 
             if result['isProxy']:
                 self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} {self.Config.GLINE_DURATION} This server do not allow proxy connexions {str(result['isProxy'])} - detected by freeipapi")
@@ -841,20 +886,22 @@ class Defender():
             return result
         except KeyError as ke:
             self.Logs.error(f"FREEIPAPI_SCAN KeyError : {ke}")
+        except Exception as err:
+            self.Logs.error(f"General Error Freeipapi : {err}")
 
     def thread_freeipapi_scan(self) -> None:
         try:
 
             while self.freeipapi_isRunning:
 
-                list_to_remove:list = []
-                for ip in self.freeipapi_remote_ip:
-                    self.freeipapi_scan(ip)
-                    list_to_remove.append(ip)
+                list_to_remove: list[User.UserModel] = []
+                for user in self.freeipapi_UserModel:
+                    self.freeipapi_scan(user)
+                    list_to_remove.append(user)
                     time.sleep(1)
 
-                for ip_to_remove in list_to_remove:
-                    self.freeipapi_remote_ip.remove(ip_to_remove)
+                for user_model in list_to_remove:
+                    self.freeipapi_UserModel.remove(user_model)
 
                 time.sleep(1)
 
@@ -862,7 +909,7 @@ class Defender():
         except ValueError as ve:
             self.Logs.error(f"thread_freeipapi_scan Error : {ve}")
 
-    def cloudfilt_scan(self, remote_ip:str) -> Union[dict[str, any], None]:
+    def cloudfilt_scan(self, userModel: User.UserModel) -> Union[dict[str, any], None]:
         """Analyse l'ip avec cloudfilt
            Cette methode devra etre lancer toujours via un thread ou un timer.
         Args:
@@ -872,6 +919,12 @@ class Defender():
             dict[str, any] | None: les informations du provider
             keys : 'countryCode', 'isProxy'
         """
+        User = userModel
+        remote_ip = User.remote_ip
+        username = User.username
+        hostname = User.hostname
+        nickname = User.nickname
+
         if remote_ip in self.Config.WHITELISTED_IP:
             return None
         if self.ModConfig.cloudfilt_scan == 0:
@@ -891,11 +944,10 @@ class Defender():
             'key': self.cloudfilt_key
         }
 
-        response = requests.post(url=url, data=data)
-
-        # Formatted output
-        decodedResponse = json.loads(response.text)
         try:
+            response = requests.post(url=url, data=data)
+            # Formatted output
+            decodedResponse = json.loads(response.text)
             status_code = response.status_code
             if status_code != 200:
                 self.Logs.warning(f'Error connecting to cloudfilt API | Code: {str(status_code)}')
@@ -908,7 +960,10 @@ class Defender():
                 'host': decodedResponse['host'] if 'host' in decodedResponse else None
             }
 
-            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {str(remote_ip)} ==> Host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {str(result['listed_by'])}")
+            # pseudo!ident@host
+            fullname = f'{nickname}!{username}@{hostname}'
+
+            self.Irc.send2socket(f":{service_id} PRIVMSG {service_chanlog} :[ {color_red}CLOUDFILT_SCAN{color_black} ] : Connexion de {fullname} ({remote_ip}) ==> Host: {str(result['host'])} | country: {str(result['countryiso'])} | listed: {str(result['listed'])} | listed by : {str(result['listed_by'])}")
 
             if result['listed']:
                 self.Irc.send2socket(f":{service_id} GLINE +*@{remote_ip} {self.Config.GLINE_DURATION} You connexion is listed as dangerous {str(result['listed'])} {str(result['listed_by'])} - detected by cloudfilt")
@@ -926,13 +981,13 @@ class Defender():
             while self.cloudfilt_isRunning:
 
                 list_to_remove:list = []
-                for ip in self.cloudfilt_remote_ip:
-                    self.cloudfilt_scan(ip)
-                    list_to_remove.append(ip)
+                for user in self.cloudfilt_UserModel:
+                    self.cloudfilt_scan(user)
+                    list_to_remove.append(user)
                     time.sleep(1)
 
-                for ip_to_remove in list_to_remove:
-                    self.cloudfilt_remote_ip.remove(ip_to_remove)
+                for user_model in list_to_remove:
+                    self.cloudfilt_UserModel.remove(user_model)
 
                 time.sleep(1)
 
@@ -940,7 +995,7 @@ class Defender():
         except ValueError as ve:
             self.Logs.error(f"Thread_cloudfilt_scan Error : {ve}")
 
-    def cmd(self, data:list) -> None:
+    def cmd(self, data: list) -> None:
 
         service_id = self.Config.SERVICE_ID                 # Defender serveur id
         cmd = list(data).copy()
@@ -966,22 +1021,6 @@ class Defender():
                     if not self.Base.is_valid_ip(cmd[2]):
                         return None
 
-                    # self.Base.scan_ports(cmd[2])
-                    if self.ModConfig.local_scan == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.localscan_remote_ip.append(cmd[2])
-
-                    if self.ModConfig.psutil_scan == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.psutil_remote_ip.append(cmd[2])
-
-                    if self.ModConfig.abuseipdb_scan == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.abuseipdb_remote_ip.append(cmd[2])
-
-                    if self.ModConfig.freeipapi_scan == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.freeipapi_remote_ip.append(cmd[2])
-
-                    if self.ModConfig.cloudfilt_scan == 1 and not cmd[2] in self.Config.WHITELISTED_IP:
-                        self.cloudfilt_remote_ip.append(cmd[2])
-
                     # Possibilité de déclancher les bans a ce niveau.
                 except IndexError as ie:
                     self.Logs.error(f'cmd reputation: index error: {ie}')
@@ -1005,6 +1044,15 @@ class Defender():
 
                 # Get User information
                 _User = self.User.get_User(str(cmd[7]))
+
+                # If user is not service or IrcOp then scan them
+                if not re.match(fr'^.*[S|o?].*$', _User.umodes):
+                    self.abuseipdb_UserModel.append(_User) if self.ModConfig.abuseipdb_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+                    self.freeipapi_UserModel.append(_User) if self.ModConfig.freeipapi_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+                    self.cloudfilt_UserModel.append(_User) if self.ModConfig.cloudfilt_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+                    self.psutil_UserModel.append(_User) if self.ModConfig.psutil_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+                    self.localscan_UserModel.append(_User) if self.ModConfig.local_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+
                 if _User is None:
                     self.Logs.critical(f'This UID: [{cmd[7]}] is not available please check why')
                     return None
@@ -1582,9 +1630,10 @@ class Defender():
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : NICKNAME         : {UserObject.nickname}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : USERNAME         : {UserObject.username}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : HOSTNAME         : {UserObject.hostname}')
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : IP               : {UserObject.remote_ip}')
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : REPUTATION       : {UserObject.score_connexion}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : VHOST            : {UserObject.vhost}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : IP               : {UserObject.remote_ip}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : WebIrc           : {UserObject.isWebirc}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : REPUTATION       : {UserObject.score_connexion}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : MODES            : {UserObject.umodes}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : CONNECTION TIME  : {UserObject.connexion_datetime}')
                     else:

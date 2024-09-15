@@ -203,7 +203,6 @@ class Connection:
                                 final_message = ' '.join(message)
 
                                 self.send2socket(f"PRIVMSG {clone_channel} :{final_message}")
-                                
 
         except UnicodeEncodeError:
             for data in cmd:

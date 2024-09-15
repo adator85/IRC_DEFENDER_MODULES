@@ -36,8 +36,6 @@ class Install:
             if self.skip_install:
                 return None
 
-            print(f'Configuration loaded : {self.config}')
-
             # Sinon tester les dependances python et les installer avec pip
             if self.do_install():
 

@@ -2,6 +2,7 @@
 db/
 logs/
 __pycache__/
+mods/mod_jsonrpc.py
 configuration.json
-install.log
+*.log
 test.py
