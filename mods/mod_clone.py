@@ -139,10 +139,6 @@ class Clone():
                     found = True
                     break
 
-            # while not clone.connected:
-            #     if clone.connected:
-            #         self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} CHGHOST {clone.nickname} {rand_ip}')
-
     def thread_create_clones(self, nickname: str, username: str, realname: str, channels: list, server_port: int, ssl: bool) -> None:
 
         Connection(server_port=server_port, nickname=nickname, username=username, realname=realname, channels=channels, CloneObject=self.Clone, ssl=ssl)
