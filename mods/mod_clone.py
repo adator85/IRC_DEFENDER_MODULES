@@ -131,12 +131,17 @@ class Clone():
             rand_3 = fake.random_elements(['A','B','C','D','E','F','0','1','2','3','4','5','6','7','8','9'], unique=True, length=8)
 
             rand_ip = ''.join(rand_1) + '.' + ''.join(rand_2) + '.' + ''.join(rand_3) + '.IP'
-            if clone.connected:
-                self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} CHGHOST {clone.nickname} {rand_ip}')
+            found = False
 
-            while not clone.connected:
+            while not found:
                 if clone.connected:
                     self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} CHGHOST {clone.nickname} {rand_ip}')
+                    found = True
+                    break
+
+            # while not clone.connected:
+            #     if clone.connected:
+            #         self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} CHGHOST {clone.nickname} {rand_ip}')
 
     def thread_create_clones(self, nickname: str, username: str, realname: str, channels: list, server_port: int, ssl: bool) -> None:
 
