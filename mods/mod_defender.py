@@ -109,18 +109,12 @@ class Defender():
 
         self.timeout = self.Config.API_TIMEOUT
 
+        # Listes qui vont contenir les ip a scanner avec les différentes API
         self.abuseipdb_UserModel: list[User.UserModel] = []
         self.freeipapi_UserModel: list[User.UserModel] = []
         self.cloudfilt_UserModel: list[User.UserModel] = []
         self.psutil_UserModel: list[User.UserModel]    = []
         self.localscan_UserModel: list[User.UserModel] = []
-
-        # Listes qui vont contenir les ip a scanner avec les différentes API
-        # self.freeipapi_remote_ip:list = []
-        # self.cloudfilt_remote_ip:list = []
-        # self.abuseipdb_remote_ip:list = []
-        # self.psutil_remote_ip:list    = []
-        # self.localscan_remote_ip:list = []
 
         # Variables qui indique que les threads sont en cours d'éxecutions
         self.abuseipdb_isRunning:bool       = True
@@ -234,11 +228,11 @@ class Defender():
         """Cette methode sera executée a chaque désactivation ou 
         rechargement de module
         """
-        self.abuseipdb_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec abuseipdb
-        self.freeipapi_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec freeipapi
-        self.cloudfilt_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec cloudfilt
-        self.psutil_remote_ip:list    = []                                  # Liste qui va contenir les adresses ip a scanner avec psutil_scan
-        self.localscan_remote_ip:list = []                                  # Liste qui va contenir les adresses ip a scanner avec local_scan
+        self.abuseipdb_UserModel: list[User.UserModel] = []
+        self.freeipapi_UserModel: list[User.UserModel] = []
+        self.cloudfilt_UserModel: list[User.UserModel] = []
+        self.psutil_UserModel: list[User.UserModel]    = []
+        self.localscan_UserModel: list[User.UserModel] = []
 
         self.abuseipdb_isRunning:bool = False
         self.freeipapi_isRunning:bool = False
@@ -1115,20 +1109,20 @@ class Defender():
                 if not self.Base.is_valid_ip(cmd[7]):
                     return None
 
-                if self.ModConfig.local_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.localscan_remote_ip.append(cmd[7])
+                # if self.ModConfig.local_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                #     self.localscan_remote_ip.append(cmd[7])
 
-                if self.ModConfig.psutil_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.psutil_remote_ip.append(cmd[7])
+                # if self.ModConfig.psutil_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                #     self.psutil_remote_ip.append(cmd[7])
 
-                if self.ModConfig.abuseipdb_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.abuseipdb_remote_ip.append(cmd[7])
+                # if self.ModConfig.abuseipdb_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                #     self.abuseipdb_remote_ip.append(cmd[7])
 
-                if self.ModConfig.freeipapi_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.freeipapi_remote_ip.append(cmd[7])
+                # if self.ModConfig.freeipapi_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                #     self.freeipapi_remote_ip.append(cmd[7])
 
-                if self.ModConfig.cloudfilt_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                    self.cloudfilt_remote_ip.append(cmd[7])
+                # if self.ModConfig.cloudfilt_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                #     self.cloudfilt_remote_ip.append(cmd[7])
 
             case 'NICK':
                 # :0010BS24L NICK [NEWNICK] 1697917711
