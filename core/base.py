@@ -218,7 +218,7 @@ class Base:
         """Supprime les modules de la base de données
 
         Args:
-            cmd (str): le module a enregistrer
+            cmd (str): le module a supprimer
         """
         insert_cmd_query = f"DELETE FROM {self.Config.table_module} WHERE module_name = :module_name"
         mes_donnees = {'module_name': module_name}

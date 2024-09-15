@@ -453,6 +453,7 @@ class Irc:
         except ModuleNotFoundError as moduleNotFound:
             self.Base.logs.error(f"MODULE_NOT_FOUND: {moduleNotFound}")
             self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}MODULE_NOT_FOUND{self.Config.CONFIG_COLOR['noire']} ]: {moduleNotFound}")
+            self.Base.db_delete_module(module_name)
         except Exception as e:
             self.Base.logs.error(f"Something went wrong with a module you want to load : {e}")
             self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}ERROR{self.Config.CONFIG_COLOR['noire']} ]: {e}")
