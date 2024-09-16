@@ -180,10 +180,18 @@ class Connection:
 
                 match response[1]:
                     case '376':
+                        # End of MOTD
                         self.currentCloneObject.connected = True
                         for channel in self.channels:
                             self.send2socket(f"JOIN {channel}")
                         return None
+                    case '422':
+                        # Missing MOTD
+                        self.currentCloneObject.connected = True
+                        for channel in self.channels:
+                            self.send2socket(f"JOIN {channel}")
+                        return None
+
                     case 'PRIVMSG':
                         self.Base.logs.debug(response)
                         self.Base.logs.debug(f'{self.currentCloneObject.nickname} - {self.currentCloneObject.alive}')
