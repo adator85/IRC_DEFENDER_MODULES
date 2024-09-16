@@ -1376,7 +1376,7 @@ class Irc:
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : {uptime}')
 
             case 'copyright':
-                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Config.current_version} Developped by adator® and dktmb® #')
+                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Config.current_version} Developped by adator® #')
 
             case 'checkversion':
 
