@@ -153,18 +153,22 @@ class Clone():
         self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Clones start to join {channel_name} with {wait} secondes frequency')
         if clone_name is None:
             for clone in self.Clone.UID_CLONE_DB:
-                time.sleep(wait)
-                self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
+                if not channel_name in clone.channels:
+                    time.sleep(wait)
+                    self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
+                    clone.channels.append(channel_name)
         else:
             for clone in self.Clone.UID_CLONE_DB:
                 if clone_name == clone.nickname:
-                    time.sleep(wait)
-                    self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
+                    if not channel_name in clone.channels:
+                        time.sleep(wait)
+                        self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
+                        clone.channels.append(channel_name)
 
     def generate_names(self) -> tuple[str, str, str]:
         try:
             fake = faker.Faker('en_GB')
-            nickname = fake.first_name()
+            # nickname = fake.first_name()
             # username = fake.last_name()
 
             # Generate Username
@@ -175,6 +179,14 @@ class Clone():
             # Create realname XX F|M Department
             gender = fake.random_choices(['F','M'], 1)
             gender = ''.join(gender)
+            
+            if gender == 'F':
+                nickname = fake.first_name_female()
+            elif gender == 'M':
+                nickname = fake.first_name_male()
+            else:
+                nickname = fake.first_name()
+
             age = random.randint(20, 60)
             fake_fr = faker.Faker(['fr_FR', 'en_GB'])
             department = fake_fr.department_name()
@@ -185,11 +197,11 @@ class Clone():
                 randomize = ''.join(random.choice(caracteres) for _ in range(2))
                 nickname = nickname + str(randomize)
                 self.Clone.insert(
-                    self.Clone.CloneModel(alive=True, nickname=nickname, username=username, realname=realname)
+                    self.Clone.CloneModel(alive=True, nickname=nickname, username=username, realname=realname, channels=[])
                     )
             else:
                 self.Clone.insert(
-                    self.Clone.CloneModel(alive=True, nickname=nickname, username=username, realname=realname)
+                    self.Clone.CloneModel(alive=True, nickname=nickname, username=username, realname=realname, channels=[])
                     )
 
             return (nickname, username, realname)

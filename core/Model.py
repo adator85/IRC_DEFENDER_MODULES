@@ -414,6 +414,7 @@ class Clones:
         nickname: str
         username: str
         realname: str
+        channels: list
         vhost: str = None
         connected: bool = False
 

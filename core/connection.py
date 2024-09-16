@@ -204,7 +204,7 @@ class Connection:
                         fullname = str(response[0]).replace(':', '')
                         nickname = fullname.split('!')[0].replace(':','')
 
-                        if response[2] == current_clone_nickname:
+                        if response[2] == current_clone_nickname and nickname != self.Config.SERVICE_NICKNAME:
                             message = []
                             for i in range(3, len(response)):
                                     message.append(response[i])

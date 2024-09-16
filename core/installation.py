@@ -80,6 +80,11 @@ class Install:
             self.skip_install = True
         else:
             if self.is_root():
+                print(f'/!\\ I fully not recommend running Defender as root /!\\')
+                self.skip_install = True
+            # Check if configuration.json exist
+            if not os.path.exists({os.path.join(self.config.defender_install_folder, 'core', 'configuration.json')}):
+                print(f'/!\\ configuration.json is not available, please create it first /!\\')
                 self.skip_install = True
 
     def is_root(self) -> bool:
