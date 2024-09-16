@@ -126,6 +126,9 @@ class Clone():
 
         fake = faker.Faker('en_GB')
         for clone in self.Clone.UID_CLONE_DB:
+            if not clone.vhost is None:
+                continue
+
             rand_1 = fake.random_elements(['A','B','C','D','E','F','0','1','2','3','4','5','6','7','8','9'], unique=True, length=8)
             rand_2 = fake.random_elements(['A','B','C','D','E','F','0','1','2','3','4','5','6','7','8','9'], unique=True, length=8)
             rand_3 = fake.random_elements(['A','B','C','D','E','F','0','1','2','3','4','5','6','7','8','9'], unique=True, length=8)
@@ -137,6 +140,7 @@ class Clone():
                 if clone.connected:
                     self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} CHGHOST {clone.nickname} {rand_ip}')
                     found = True
+                    clone.vhost = rand_ip
                     break
 
     def thread_create_clones(self, nickname: str, username: str, realname: str, channels: list, server_port: int, ssl: bool) -> None:
@@ -146,16 +150,16 @@ class Clone():
         return None
 
     def thread_join_channels(self, channel_name: str, wait: float, clone_name:str = None):
-
+        self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Clones start to join {channel_name} with {wait} secondes frequency')
         if clone_name is None:
             for clone in self.Clone.UID_CLONE_DB:
-                self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
                 time.sleep(wait)
+                self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
         else:
             for clone in self.Clone.UID_CLONE_DB:
                 if clone_name == clone.nickname:
-                    self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
                     time.sleep(wait)
+                    self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone.nickname} :JOIN {channel_name}')
 
     def generate_names(self) -> tuple[str, str, str]:
         try:
@@ -237,14 +241,13 @@ class Clone():
                                     nickname, username, realname = self.generate_names()
                                     self.Base.create_thread(
                                         self.thread_create_clones,
-                                        (nickname, username, realname, ['#clones'], 6697, True)
+                                        (nickname, username, realname, [], 6697, True)
                                         )
 
                                 self.Base.create_thread(
-                                    self.thread_change_hostname,
-                                    run_once=True
+                                    self.thread_change_hostname
                                 )
-                                
+
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{str(number_of_clones)} clones joined the network')
 
                             except Exception as err:

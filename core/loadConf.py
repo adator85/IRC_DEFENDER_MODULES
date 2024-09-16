@@ -82,6 +82,9 @@ class ConfigDataModel:
     SALON_LIBERER: str
     """Channel where the nickname will be released"""
 
+    SALON_CLONES: str
+    """Channel to host clones"""
+
     API_TIMEOUT: int
     """Default api timeout in second"""
 
@@ -184,6 +187,7 @@ class Config:
             SALON_JAIL=import_config["SALON_JAIL"],
             SALON_JAIL_MODES=import_config["SALON_JAIL_MODES"],
             SALON_LIBERER=import_config["SALON_LIBERER"],
+            SALON_CLONES=import_config["SALON_CLONES"],
             API_TIMEOUT=import_config["API_TIMEOUT"],
             PORTS_TO_SCAN=import_config["PORTS_TO_SCAN"],
             WHITELISTED_IP=import_config["WHITELISTED_IP"],

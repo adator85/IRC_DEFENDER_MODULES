@@ -414,6 +414,7 @@ class Clones:
         nickname: str
         username: str
         realname: str
+        vhost: str = None
         connected: bool = False
 
     UID_CLONE_DB: list[CloneModel] = []

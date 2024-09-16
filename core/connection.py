@@ -15,7 +15,7 @@ class Connection:
         self.nickname = nickname
         self.username = username
         self.realname = realname
-        self.chanlog = '#clones'
+        self.clone_chanlog = self.Config.SALON_CLONES
         self.channels:list[str] = channels
         self.CHARSET = ['utf-8', 'iso-8859-1']
         self.Clones = CloneObject
@@ -62,7 +62,7 @@ class Connection:
             self.Base.logs.critical(f"AttributeError __create_socket: {ae} - {soc.fileno()}")
             return False
 
-    def send2socket(self, send_message:str) -> None:
+    def send2socket(self, send_message:str, disconnect: bool = False) -> None:
         """Envoit les commandes à envoyer au serveur.
 
         Args:
@@ -70,9 +70,8 @@ class Connection:
         """
         try:
             with self.Base.lock:
-                # print(f">{str(send_message)}")
                 self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0]))
-                self.Base.logs.debug(f'{send_message}')
+                self.Base.logs.debug(f'<<{self.currentCloneObject.nickname}>>: {send_message}')
 
         except UnicodeDecodeError:
             self.Base.logs.error(f'Decode Error try iso-8859-1 - message: {send_message}')
@@ -114,7 +113,6 @@ class Connection:
 
     def connect(self):
         try:
-
             while self.signal:
                 try:
                     # 4072 max what the socket can grab
@@ -132,6 +130,7 @@ class Connection:
                     data = data_in_bytes.splitlines(True)
 
                     if not data:
+                        # If no data then quit the loop
                         break
 
                     self.parser(data)
@@ -145,10 +144,6 @@ class Connection:
                     self.Base.logs.error(f"OSError __connect_to_irc: {oe} - {data}")
                     self.signal = False
 
-            self.IrcSocket.shutdown(socket.SHUT_RDWR)
-            self.IrcSocket.close()
-            self.Base.logs.info("--> Clone Disconnected ...")
-
         except AssertionError as ae:
             self.Base.logs.error(f'Assertion error : {ae}')
         except ValueError as ve:
@@ -159,12 +154,17 @@ class Connection:
             self.Base.logs.critical(f"{atte}")
         except Exception as e:
             self.Base.logs.error(f"Exception: {e}")
+        finally:
+            self.IrcSocket.shutdown(socket.SHUT_WR)
+            self.IrcSocket.shutdown(socket.SHUT_RD)
+            self.Base.logs.info(f"<<{self.currentCloneObject.nickname}>> Clone Disconnected ...")
+            # self.IrcSocket.close()
 
     def parser(self, cmd:list[bytes]):
         try:
+
             for data in cmd:
                 response = data.decode(self.CHARSET[0]).split()
-                self.signal = self.currentCloneObject.alive
                 current_clone_nickname = self.currentCloneObject.nickname
                 # print(response)
 
@@ -176,7 +176,8 @@ class Connection:
                     case 'ERROR':
                         error_value = str(response[1]).replace(':','')
                         if error_value == 'Closing':
-                            self.signal = False
+                            self.Base.logs.info(f"<<{self.currentCloneObject.nickname}>> {response} ...")
+                            # self.signal = False
 
                 match response[1]:
                     case '376':
@@ -184,17 +185,22 @@ class Connection:
                         self.currentCloneObject.connected = True
                         for channel in self.channels:
                             self.send2socket(f"JOIN {channel}")
+
+                        self.send2socket(f"JOIN {self.clone_chanlog}")
+
                         return None
                     case '422':
                         # Missing MOTD
                         self.currentCloneObject.connected = True
                         for channel in self.channels:
                             self.send2socket(f"JOIN {channel}")
+
+                        self.send2socket(f"JOIN {self.clone_chanlog}")
                         return None
 
                     case 'PRIVMSG':
-                        self.Base.logs.debug(response)
-                        self.Base.logs.debug(f'{self.currentCloneObject.nickname} - {self.currentCloneObject.alive}')
+                        self.Base.logs.debug(f'<<{self.currentCloneObject.nickname}>> Response: {response}')
+                        self.Base.logs.debug(f'<<{self.currentCloneObject.nickname}>> Alive: {self.currentCloneObject.alive}')
                         fullname = str(response[0]).replace(':', '')
                         nickname = fullname.split('!')[0].replace(':','')
 
@@ -203,14 +209,13 @@ class Connection:
                             for i in range(3, len(response)):
                                     message.append(response[i])
                             final_message = ' '.join(message)
-                            self.send2socket(f"PRIVMSG {self.chanlog} :{fullname} => {final_message[1:]}")
+                            self.send2socket(f"PRIVMSG {self.clone_chanlog} :{fullname} => {final_message[1:]}")
 
                         if nickname == self.Config.SERVICE_NICKNAME:
                             command = str(response[3]).replace(':','')
 
                             if command == 'KILL':
-                                self.send2socket(f'QUIT :Thanks and goodbye')
-                                self.signal = self.currentCloneObject.alive
+                                self.send2socket(f'QUIT :Thanks and goodbye', disconnect=True)
 
                             if command == 'JOIN':
                                 channel_to_join = str(response[4])

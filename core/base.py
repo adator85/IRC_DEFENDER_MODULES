@@ -429,7 +429,7 @@ class Base:
         except AssertionError as ae:
             self.logs.error(f'Assertion Error -> {ae}')
 
-    def create_thread(self, func:object, func_args: tuple = (), run_once:bool = False) -> None:
+    def create_thread(self, func:object, func_args: tuple = (), run_once:bool = False, daemon: bool = True) -> None:
         """Create a new thread and store it into running_threads variable
 
         Args:
@@ -445,7 +445,7 @@ class Base:
                     if thread.getName() == func_name:
                         return None
 
-            th = threading.Thread(target=func, args=func_args, name=str(func_name), daemon=True)
+            th = threading.Thread(target=func, args=func_args, name=str(func_name), daemon=daemon)
             th.start()
 
             self.running_threads.append(th)
