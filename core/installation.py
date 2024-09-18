@@ -69,7 +69,7 @@ class Install:
                 venv_python_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}python'
             )
 
-        if self.check_python_version():
+        if not self.check_python_version():
             # If the Python version is not good then Exit
             exit("/!\\ Python version error /!\\")
 
