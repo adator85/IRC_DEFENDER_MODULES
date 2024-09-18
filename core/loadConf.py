@@ -184,6 +184,9 @@ class Config:
             print(f'FileNotFound: {fe}')
             print('Configuration file not found please create core/configuration.json')
             sys.exit(0)
+        except KeyError as ke:
+            print(f'Key Error: {ke}')
+            print('The key must be defined in core/configuration.json')
 
     def __load_service_configuration(self) -> ConfigDataModel:
         import_config = self.__load_json_service_configuration()

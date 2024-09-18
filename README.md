@@ -127,18 +127,8 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
     "SERVICE_HOST": "HOST.DE.TON.DEFENDER",
 
     "OWNER": "TON_NICK_NAME",
-    "PASSWORD": "admin",
+    "PASSWORD": "admin"
 
-    "CONFIG_COLOR": {
-        "blanche": "\\u0003\\u0030",
-        "noire": "\\u0003\\u0031",
-        "bleue": "\\u0003\\u0020",
-        "verte": "\\u0003\\u0033",
-        "rouge": "\\u0003\\u0034",
-        "jaune": "\\u0003\\u0036",
-        "gras": "\\u0002",
-        "nogc": "\\u0002\\u0003"
-    }
 }
 
 ```
