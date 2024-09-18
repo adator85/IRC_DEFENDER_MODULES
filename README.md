@@ -137,10 +137,10 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
 ```json
 {
     "SERVEUR_IP": "YOUR.SERVER.IP",
-    "SERVEUR_HOSTNAME": "irc.deb.biz.st",
-    "SERVEUR_LINK": "defenderdev.deb.biz.st",
+    "SERVEUR_HOSTNAME": "YOUR.SERVER.HOST",
+    "SERVEUR_LINK": "LINK.DE.TON.SERVER",
     "SERVEUR_PORT": 6901,
-    "SERVEUR_PASSWORD": "yourpassword",
+    "SERVEUR_PASSWORD": "YOUR_LINK_PASSWORD",
     "SERVEUR_ID": "10Z",
     "SERVEUR_SSL": true,
 
@@ -191,10 +191,46 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
 Le mot de passe de l'administrateur et le mot de passe du service doivent être modifiés pour des raisons de sécurité.
 Ne partagez pas vos informations de connexion au serveur IRC avec des tiers.
 a votre premiere connexion vous devez tapez 
+```
+    /msg [NomDuService] auth [nickname] [password]
+    -- Une fois identifié tapez la commande suivante
+    /msg [NomDuService] editaccess [nickname] [Nouveau-Password] 5
+```
+# Unrealircd configuration
+```
+listen {
+	ip *;
+	port 6901;
+	options { tls; serversonly; }
+}
 
-        /msg [NomDuService] auth [nickname] [password]
-        -- Une fois identifié tapez la commande suivante
-        /msg [NomDuService] editaccess [nickname] [Nouveau-Password] 5
+link LINK.DE.TON.SERVER
+{
+
+	incoming {
+                mask *;
+                bind-ip *;
+                port 6901;
+                //options { tls; };
+        }
+
+	outgoing {
+                bind-ip *; /* ou une IP précise */
+                hostname LINK.DE.TON.SERVER;
+                port 6901;
+                //options { tls; }
+        }
+
+	password "YOUR_LINK_PASSWORD";
+	
+        class servers;
+
+}
+
+ulines {
+	LINK.DE.TON.SERVER;
+}
+```
 
 # Extension:
     Le code est modulaire et conçu pour être facilement étendu. Vous pouvez ajouter de nouvelles commandes, de nouvelles fonctionnalités (mods/mod_test.py  est un exemple pour bien demarrer la création de son module).
