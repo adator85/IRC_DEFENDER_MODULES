@@ -28,22 +28,17 @@ class Install:
 
         self.set_configuration()
 
-        if not self.check_python_version():
-            # Tester si c'est la bonne version de python
-            exit("Python Version Error")
-        else:
+        if self.skip_install:
+            return None
 
-            if self.skip_install:
-                return None
+        # Sinon tester les dependances python et les installer avec pip
+        if self.do_install():
 
-            # Sinon tester les dependances python et les installer avec pip
-            if self.do_install():
+            self.install_dependencies()
 
-                self.install_dependencies()
+            self.create_service_file()
 
-                self.create_service_file()
-
-                self.print_final_message()
+            self.print_final_message()
 
         return None
 
@@ -74,18 +69,24 @@ class Install:
                 venv_python_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}python'
             )
 
-        # Exclude Windows OS
+        if self.check_python_version():
+            # If the Python version is not good then Exit
+            exit("/!\\ Python version error /!\\")
+
+        if not os.path.exists(os.path.join(self.config.defender_install_folder, 'core', 'configuration.json')):
+            # If configuration file do not exist
+            exit("/!\\ Configuration file (configuration.json) doesn't exist /!\\")
+
+        # Exclude Windows OS from the installation
         if os.name == 'nt':
             #print('/!\\ Skip installation /!\\')
             self.skip_install = True
-        else:
-            if self.is_root():
-                print(f'/!\\ I fully not recommend running Defender as root /!\\')
-                self.skip_install = True
-            # Check if configuration.json exist
-            if not os.path.exists({os.path.join(self.config.defender_install_folder, 'core', 'configuration.json')}):
-                print(f'/!\\ configuration.json is not available, please create it first /!\\')
-                self.skip_install = True
+            return False
+
+        if self.is_root():
+            exit(f'/!\\ I highly not recommend running Defender as root /!\\')
+            self.skip_install = True
+            return False
 
     def is_root(self) -> bool:
 

@@ -150,8 +150,33 @@ class Config:
             with open(conf_filename, 'r') as configuration_data:
                 configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
 
-            for key, value in configuration['CONFIG_COLOR'].items():
-                configuration['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
+            config_dict = {"CONFIG_COLOR" : {
+                            "blanche": "\\u0003\\u0030",
+                            "noire": "\\u0003\\u0031",
+                            "bleue": "\\u0003\\u0020",
+                            "verte": "\\u0003\\u0033",
+                            "rouge": "\\u0003\\u0034",
+                            "jaune": "\\u0003\\u0036",
+                            "gras": "\\u0002",
+                            "nogc": "\\u0002\\u0003"
+                                }
+                            }
+
+            missing_color = False
+
+            if not "CONFIG_COLOR" in configuration:
+                missing_color = True
+                configuration_color = config_dict
+            else:
+                configuration_color = configuration["CONFIG_COLOR"]
+
+            if missing_color:
+                for key, value in configuration_color.items():
+                    configuration_color['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
+                configuration['CONFIG_COLOR'] = configuration_color['CONFIG_COLOR']
+            else:
+                for key, value in configuration['CONFIG_COLOR'].items():
+                    configuration['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
 
             return configuration
 
