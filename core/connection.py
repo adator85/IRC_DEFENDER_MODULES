@@ -144,6 +144,10 @@ class Connection:
                     self.Base.logs.error(f"OSError __connect_to_irc: {oe} - {data}")
                     self.signal = False
 
+            self.IrcSocket.shutdown(socket.SHUT_WR)
+            self.IrcSocket.shutdown(socket.SHUT_RD)
+            self.Base.logs.info(f"<<{self.currentCloneObject.nickname}>> Clone Disconnected ...")
+
         except AssertionError as ae:
             self.Base.logs.error(f'Assertion error : {ae}')
         except ValueError as ve:
@@ -154,11 +158,6 @@ class Connection:
             self.Base.logs.critical(f"{atte}")
         except Exception as e:
             self.Base.logs.error(f"Exception: {e}")
-        finally:
-            self.IrcSocket.shutdown(socket.SHUT_WR)
-            self.IrcSocket.shutdown(socket.SHUT_RD)
-            self.Base.logs.info(f"<<{self.currentCloneObject.nickname}>> Clone Disconnected ...")
-            # self.IrcSocket.close()
 
     def parser(self, cmd:list[bytes]):
         try:
@@ -177,6 +176,7 @@ class Connection:
                         error_value = str(response[1]).replace(':','')
                         if error_value == 'Closing':
                             self.Base.logs.info(f"<<{self.currentCloneObject.nickname}>> {response} ...")
+                            self.currentCloneObject.connected = False
                             # self.signal = False
 
                 match response[1]:

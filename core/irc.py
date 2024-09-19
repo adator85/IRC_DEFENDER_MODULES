@@ -1017,7 +1017,7 @@ class Irc:
                 current_command = cmd[0]
                 uid_to_deauth = self.User.get_uid(fromuser)
                 self.delete_db_admin(uid_to_deauth)
-                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
+                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
 
             case 'auth':
                 # ['auth', 'adator', 'password']
@@ -1039,10 +1039,10 @@ class Irc:
                     if not user_from_db is None:
                         uid_user = self.User.get_uid(user_to_log)
                         self.insert_db_admin(uid_user, user_from_db[1])
-                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
+                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Connexion a {dnickname} réussie!")
                     else:
-                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
+                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Mot de passe incorrecte")
 
                 else:

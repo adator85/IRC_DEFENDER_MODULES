@@ -122,6 +122,25 @@ class Clone():
 
         return None
 
+    def thread_clone_clean_up(self, wait: float):
+
+        activated = True
+
+        while activated:
+            clone_to_kill: list[str] = []
+
+            for clone in self.Clone.UID_CLONE_DB:
+                if not clone.connected and clone.alive:
+                    clone_to_kill.append(clone.nickname)
+                    clone.alive = False
+
+            for clone_nickname in clone_to_kill:
+                if self.Clone.delete(clone_nickname):
+                    self.Logs.debug(f'<<{clone_nickname}>> object has been deleted')
+
+            del clone_to_kill
+            time.sleep(wait)
+
     def thread_change_hostname(self):
 
         fake = faker.Faker('en_GB')
@@ -141,6 +160,9 @@ class Clone():
                     self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} CHGHOST {clone.nickname} {rand_ip}')
                     found = True
                     clone.vhost = rand_ip
+                    break
+                if not clone in self.Clone.UID_CLONE_DB:
+                    found = True
                     break
 
     def thread_create_clones(self, nickname: str, username: str, realname: str, channels: list, server_port: int, ssl: bool) -> None:
@@ -261,6 +283,8 @@ class Clone():
                                 )
 
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{str(number_of_clones)} clones joined the network')
+
+                                self.Base.create_thread(self.thread_clone_clean_up, (5, ), run_once=True)
 
                             except Exception as err:
                                 self.Logs.error(f'{err}')

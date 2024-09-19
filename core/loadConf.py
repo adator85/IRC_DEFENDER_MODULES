@@ -151,14 +151,14 @@ class Config:
                 configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
 
             config_dict = {"CONFIG_COLOR" : {
-                            "blanche": "\\u0003\\u0030",
-                            "noire": "\\u0003\\u0031",
-                            "bleue": "\\u0003\\u0020",
-                            "verte": "\\u0003\\u0033",
-                            "rouge": "\\u0003\\u0034",
-                            "jaune": "\\u0003\\u0036",
-                            "gras": "\\u0002",
-                            "nogc": "\\u0002\\u0003"
+                            "blanche": "\x0300",
+                            "noire": "\x0301",
+                            "bleue": "\x0302",
+                            "verte": "\x0303",
+                            "rouge": "\x0304",
+                            "jaune": "\x0306",
+                            "gras": "\x02",
+                            "nogc": "\x02\x03"
                                 }
                             }
 
