@@ -416,6 +416,7 @@ class Clones:
         realname: str
         channels: list
         vhost: str = None
+        init: bool = True
         connected: bool = False
 
     UID_CLONE_DB: list[CloneModel] = []

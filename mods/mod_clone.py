@@ -1,5 +1,5 @@
 from dataclasses import dataclass, fields, field
-import random, faker, time
+import random, faker, time, logging
 from datetime import datetime
 from typing import Union
 from core.irc import Irc
@@ -130,7 +130,7 @@ class Clone():
             clone_to_kill: list[str] = []
 
             for clone in self.Clone.UID_CLONE_DB:
-                if not clone.connected and clone.alive:
+                if not clone.connected and clone.alive and not clone.init:
                     clone_to_kill.append(clone.nickname)
                     clone.alive = False
 
@@ -165,6 +165,24 @@ class Clone():
                     found = True
                     break
 
+    def thread_create_clones_with_interval(self, number_of_clones:int, channels: list, connection_interval: float):
+        
+        for i in range(number_of_clones):
+            nickname, username, realname = self.generate_names()
+            self.Base.create_thread(
+                self.thread_create_clones,
+                (nickname, username, realname, channels, 6697, True)
+                )
+            time.sleep(connection_interval)
+
+        self.Base.create_thread(
+            self.thread_change_hostname
+        )
+
+        # self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{str(number_of_clones)} clones joined the network')
+
+        self.Base.create_thread(self.thread_clone_clean_up, (5, ), run_once=True)
+
     def thread_create_clones(self, nickname: str, username: str, realname: str, channels: list, server_port: int, ssl: bool) -> None:
 
         Connection(server_port=server_port, nickname=nickname, username=username, realname=realname, channels=channels, CloneObject=self.Clone, ssl=ssl)
@@ -189,6 +207,7 @@ class Clone():
 
     def generate_names(self) -> tuple[str, str, str]:
         try:
+            logging.getLogger('faker').setLevel(logging.CRITICAL)
             fake = faker.Faker('en_GB')
             # nickname = fake.first_name()
             # username = fake.last_name()
@@ -259,7 +278,7 @@ class Clone():
                 case 'clone':
 
                     if len(cmd) == 1:
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone connect 6')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone connect 6 2.5')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone kill [all | nickname]')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone join [all | nickname] #channel')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone list')
@@ -271,25 +290,16 @@ class Clone():
                         case 'connect':
                             try:
                                 number_of_clones = int(cmd[2])
-                                for i in range(number_of_clones):
-                                    nickname, username, realname = self.generate_names()
-                                    self.Base.create_thread(
-                                        self.thread_create_clones,
-                                        (nickname, username, realname, [], 6697, True)
-                                        )
-
+                                connection_interval = int(cmd[3]) if len(cmd) == 4 else 0.5
                                 self.Base.create_thread(
-                                    self.thread_change_hostname
-                                )
-
-                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{str(number_of_clones)} clones joined the network')
-
-                                self.Base.create_thread(self.thread_clone_clean_up, (5, ), run_once=True)
+                                    self.thread_create_clones_with_interval,
+                                    (number_of_clones, [], connection_interval)
+                                    )
 
                             except Exception as err:
                                 self.Logs.error(f'{err}')
-                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone connect [number of clone you want to connect]')
-                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} clone connect 6')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :/msg {dnickname} clone connect [number of clone you want to connect] [Connection Interval]')
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :Exemple /msg {dnickname} clone connect 6 2.5')
 
                         case 'kill':
                             try:
