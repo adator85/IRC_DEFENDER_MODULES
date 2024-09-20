@@ -146,6 +146,7 @@ class Connection:
 
             self.IrcSocket.shutdown(socket.SHUT_WR)
             self.IrcSocket.shutdown(socket.SHUT_RD)
+            self.currentCloneObject.init = False
             self.Base.logs.info(f"<<{self.currentCloneObject.nickname}>> Clone Disconnected ...")
 
         except AssertionError as ae:
@@ -177,12 +178,15 @@ class Connection:
                         if error_value == 'Closing':
                             self.Base.logs.info(f"<<{self.currentCloneObject.nickname}>> {response} ...")
                             self.currentCloneObject.connected = False
+                        else:
+                            self.Base.logs.info(f"<<{self.currentCloneObject.nickname}>> {response} ...")
                             # self.signal = False
 
                 match response[1]:
                     case '376':
                         # End of MOTD
                         self.currentCloneObject.connected = True
+                        self.currentCloneObject.init = False
                         for channel in self.channels:
                             self.send2socket(f"JOIN {channel}")
 
@@ -192,6 +196,7 @@ class Connection:
                     case '422':
                         # Missing MOTD
                         self.currentCloneObject.connected = True
+                        self.currentCloneObject.init = False
                         for channel in self.channels:
                             self.send2socket(f"JOIN {channel}")
 
