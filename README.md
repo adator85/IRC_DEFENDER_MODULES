@@ -57,66 +57,180 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
         $ sudo systemctl --user start defender
 
 # Configuration
-
+```
     SERVEUR (Serveur)
-        SERVEUR_IP: Adresse IP du serveur IRC à rejoindre.
-        SERVEUR_HOSTNAME: Nom d'hôte du serveur IRC à rejoindre (optionnel).
-        SERVEUR_LINK: Lien vers le serveur IRC (optionnel).
-        SERVEUR_PORT: Port de connexion au serveur IRC.
-        SERVEUR_PASSWORD: Mot de passe d'enregistrement du service sur le serveur IRC.
-        SERVEUR_ID: Identifiant unique du service.
-        SERVEUR_SSL: Active la connexion SSL sécurisée au serveur IRC (true/false).
+        * SERVEUR_IP: Adresse IP du serveur IRC à rejoindre. (default : 127.0.0.1)
+        * SERVEUR_HOSTNAME: Nom d'hôte du serveur IRC à rejoindre (optionnel).
+        * SERVEUR_LINK: Lien vers le serveur IRC (optionnel).
+        * SERVEUR_PORT: Port de connexion au serveur IRC.
+        * SERVEUR_PASSWORD: Mot de passe d'enregistrement du service sur le serveur IRC.
+        SERVEUR_ID: Identifiant unique du service. (default : 19Z)
+        SERVEUR_SSL: Active la connexion SSL sécurisée au serveur IRC (true/false) (default : false).
 
     SERVICE (Service)
-        SERVICE_NAME: Nom du service IRC.
-        SERVICE_NICKNAME: Surnom utilisé par le service sur le serveur IRC.
-        SERVICE_REALNAME: Nom réel du service affiché sur le serveur IRC.
-        SERVICE_USERNAME: Nom d'utilisateur utilisé par le service pour se connecter au serveur IRC.
-        SERVICE_HOST: Nom d'hôte du service affiché sur le serveur IRC (optionnel).
-        SERVICE_INFO: Description du service.
-        SERVICE_CHANLOG: Canal utilisé pour la journalisation des actions du service.
-        SERVICE_SMODES: Modes serveur appliqués aux canaux rejoints par le service.
-        SERVICE_CMODES: Modes de canal appliqués aux canaux rejoints par le service.
-        SERVICE_UMODES: Modes utilisateur appliqués au service.
-        SERVICE_PREFIX: Caractère utilisé comme préfixe des commandes du service.
+        SERVICE_NAME: Nom du service IRC. (default : Defender)
+        SERVICE_NICKNAME: Surnom utilisé par le service sur le serveur IRC. (default : Defender)
+        SERVICE_REALNAME: Nom réel du service affiché sur le serveur IRC. (default : Defender Security)
+        SERVICE_USERNAME: Nom d'utilisateur utilisé par le service pour se connecter au serveur IRC. (default : IRCSecurity)
+        SERVICE_HOST: Nom d'hôte du service affiché sur le serveur IRC (optionnel). (default : defender.local.network)
+        SERVICE_INFO: Description du service. (default : Defender Network IRC Service)
+        SERVICE_CHANLOG: Canal utilisé pour la journalisation des actions du service. (default : #services)
+        SERVICE_SMODES: Modes serveur appliqués aux canaux rejoints par le service. (default : +ioqBS)
+        SERVICE_CMODES: Modes de canal appliqués aux canaux rejoints par le service. (default : ntsOP)
+        SERVICE_UMODES: Modes utilisateur appliqués au service. (default : o)
+        SERVICE_PREFIX: Caractère utilisé comme préfixe des commandes du service. (default : !)
 
     COMPTE (Compte)
-        OWNER: Nom d'utilisateur possédant les droits d'administration du service.
-        PASSWORD: Mot de passe de l'administrateur du service.
+        OWNER: Nom d'utilisateur possédant les droits d'administration du service. (default : admin)
+        PASSWORD: Mot de passe de l'administrateur du service. (default : admin)
 
     CANAUX (Canaux)
-        SALON_JAIL: Canal utilisé comme prison pour les utilisateurs sanctionnés.
-        SALON_JAIL_MODES: Modes appliqués au canal de prison.
-        SALON_LIBERER: Canal utilisé pour la libération des utilisateurs sanctionnés.
+        SALON_JAIL: Canal utilisé comme prison pour les utilisateurs sanctionnés. (default : #jail)
+        SALON_JAIL_MODES: Modes appliqués au canal de prison. (default : sS)
+        SALON_LIBERER: Canal utilisé pour la libération des utilisateurs sanctionnés. (default : #welcome)
 
     API (API)
-        API_TIMEOUT: Durée maximale d'attente d'une réponse de l'API en secondes.
+        API_TIMEOUT: Durée maximale d'attente d'une réponse de l'API en secondes. (default : 2)
 
     SCANNER (Scanner)
-        PORTS_TO_SCAN: Liste des ports à scanner pour détecter des serveurs potentiellement malveillants.
+        PORTS_TO_SCAN: Liste des ports à scanner pour détecter des serveurs potentiellement malveillants. (default : [])
 
     SÉCURITÉ (Sécurité)
-        WHITELISTED_IP: Liste d'adresses IP autorisées à contourner certaines restrictions.
-        GLINE_DURATION: Durée de bannissement temporaire d'un utilisateur en minutes.
+        WHITELISTED_IP: Liste d'adresses IP autorisées à contourner certaines restrictions. (default : ['127.0.0.1'])
+        GLINE_DURATION: Durée de bannissement temporaire d'un utilisateur en minutes. (default : "30")
 
     DEBUG (Debug)
-        DEBUG_LEVEL: Niveau de verbosité des messages de debug (plus grand est le nombre, plus il y a d'informations).
+        DEBUG_LEVEL: Niveau de verbosité des messages de debug (plus grand est le nombre, plus il y a d'informations). (default : 20) Pour une production
 
     COULEURS (Couleurs)
         CONFIG_COLOR: Dictionnaire contenant des codes de couleurs IRC pour un meilleur affichage des messages.
-
+```
     Modification de la configuration
 
         Vous devez modifier le fichier configuration.json en remplaçant les valeurs par défaut avec vos propres informations. Assurez-vous de bien lire la description de chaque paramètre pour une configuration optimale du service.
+
+## Exemple de configuration de base
+```json
+{
+    "SERVEUR_IP": "IP.DE.TON.SERVER",
+    "SERVEUR_HOSTNAME": "HOST.DE.TON.SERVER",
+    "SERVEUR_LINK": "LINK.DE.TON.SERVER",
+    "SERVEUR_PORT": 6901,
+    "SERVEUR_PASSWORD": "MOT_DE_PASS_DE_TON_LINK",
+    "SERVEUR_ID": "10Z",
+    "SERVEUR_SSL": true,
+
+    "SERVICE_NAME": "defender",
+    "SERVICE_NICKNAME": "Dev-PyDefender",
+    "SERVICE_REALNAME": "Python Defender Security",
+    "SERVICE_USERNAME": "Dev-PyDefender",
+    "SERVICE_HOST": "HOST.DE.TON.DEFENDER",
+
+    "OWNER": "TON_NICK_NAME",
+    "PASSWORD": "admin"
+
+}
+
+```
+
+## Exemple complet de configuration
+```json
+{
+    "SERVEUR_IP": "YOUR.SERVER.IP",
+    "SERVEUR_HOSTNAME": "YOUR.SERVER.HOST",
+    "SERVEUR_LINK": "LINK.DE.TON.SERVER",
+    "SERVEUR_PORT": 6901,
+    "SERVEUR_PASSWORD": "YOUR_LINK_PASSWORD",
+    "SERVEUR_ID": "10Z",
+    "SERVEUR_SSL": true,
+
+    "SERVICE_NAME": "defender",
+    "SERVICE_NICKNAME": "Dev-PyDefender",
+    "SERVICE_REALNAME": "Python Defender Security",
+    "SERVICE_USERNAME": "Dev-PyDefender",
+    "SERVICE_HOST": "HOST.DE.TON.DEFENDER",
+    "SERVICE_INFO": "Network IRC Service",
+    "SERVICE_CHANLOG": "#services",
+    "SERVICE_SMODES": "+ioqBS",
+    "SERVICE_CMODES": "ntsOP",
+    "SERVICE_UMODES": "o",
+    "SERVICE_PREFIX": "!",
+
+    "OWNER": "TON_NICK_NAME",
+    "PASSWORD": "admin",
+
+    "SALON_JAIL": "#jail",
+    "SALON_JAIL_MODES": "sS",
+    "SALON_LIBERER": "#welcome",
+
+    "SALON_CLONES": "#clones",
+
+    "API_TIMEOUT": 2,
+
+    "PORTS_TO_SCAN": [3028, 8080, 1080, 1085, 4145, 9050],
+    "WHITELISTED_IP": ["127.0.0.1"],
+    "GLINE_DURATION": "30",
+
+    "DEBUG_LEVEL": 10,
+
+    "CONFIG_COLOR": {
+        "blanche": "\\u0003\\u0030",
+        "noire": "\\u0003\\u0031",
+        "bleue": "\\u0003\\u0020",
+        "verte": "\\u0003\\u0033",
+        "rouge": "\\u0003\\u0034",
+        "jaune": "\\u0003\\u0036",
+        "gras": "\\u0002",
+        "nogc": "\\u0002\\u0003"
+    }
+
+}
+```
 
 # \\!/ Attention \\!/
 Le mot de passe de l'administrateur et le mot de passe du service doivent être modifiés pour des raisons de sécurité.
 Ne partagez pas vos informations de connexion au serveur IRC avec des tiers.
 a votre premiere connexion vous devez tapez 
+```
+    /msg [NomDuService] auth [nickname] [password]
+    -- Une fois identifié tapez la commande suivante
+    /msg [NomDuService] editaccess [nickname] [Nouveau-Password] 5
+```
+# Unrealircd configuration
+```
+listen {
+	ip *;
+	port 6901;
+	options { tls; serversonly; }
+}
 
-        /msg [NomDuService] auth [nickname] [password]
-        -- Une fois identifié tapez la commande suivante
-        /msg [NomDuService] editaccess [nickname] [Nouveau-Password] 5
+link LINK.DE.TON.SERVER
+{
+
+	incoming {
+                mask *;
+                bind-ip *;
+                port 6901;
+                //options { tls; };
+        }
+
+	outgoing {
+                bind-ip *; /* ou une IP précise */
+                hostname LINK.DE.TON.SERVER;
+                port 6901;
+                //options { tls; }
+        }
+
+	password "YOUR_LINK_PASSWORD";
+	
+        class servers;
+
+}
+
+ulines {
+	LINK.DE.TON.SERVER;
+}
+```
 
 # Extension:
     Le code est modulaire et conçu pour être facilement étendu. Vous pouvez ajouter de nouvelles commandes, de nouvelles fonctionnalités (mods/mod_test.py  est un exemple pour bien demarrer la création de son module).

@@ -10,12 +10,15 @@ class User:
         uid: str
         nickname: str
         username: str
+        realname: str
         hostname: str
         umodes: str
         vhost: str
         isWebirc: bool
+        isWebsocket: bool
         remote_ip: str
         score_connexion: int
+        geoip: str = None
         connexion_datetime: datetime = field(default=datetime.now())
 
     UID_DB: list[UserModel] = []
@@ -410,6 +413,10 @@ class Clones:
         alive: bool
         nickname: str
         username: str
+        realname: str
+        channels: list
+        vhost: str = None
+        connected: bool = False
 
     UID_CLONE_DB: list[CloneModel] = []
 

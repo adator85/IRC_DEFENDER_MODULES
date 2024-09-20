@@ -591,7 +591,7 @@ class Irc:
             self.send2socket(f':{dnickname} NOTICE {fromuser} : Please run (git pull origin main) in the current folder')
         else:
             self.send2socket(f':{dnickname} NOTICE {fromuser} : You have the latest version of defender')
-        
+
         return None
 
     def cmd(self, data: list[str]) -> None:
@@ -813,44 +813,67 @@ class Irc:
                         self.Base.logs.error(f'Index Error: {ie}')
 
                 case 'UID':
-                    # ['@s2s-md/geoip=cc=GB|cd=United\\sKingdom|asn=16276|asname=OVH\\sSAS;s2s-md/tls_cipher=TLSv1.3-TLS_CHACHA20_POLY1305_SHA256;s2s-md/creationtime=1721564601', 
-                    # ':001', 'UID', 'albatros', '0', '1721564597', 'albatros', 'vps-91b2f28b.vps.ovh.net', 
-                    # '001HB8G04', '0', '+iwxz', 'Clk-A62F1D18.vps.ovh.net', 'Clk-A62F1D18.vps.ovh.net', 'MyZBwg==', ':...']
-                    if 'webirc' in original_response[0]:
-                        isWebirc = True
-                    else:
-                        isWebirc = False
+                    try:
+                        # ['@s2s-md/geoip=cc=GB|cd=United\\sKingdom|asn=16276|asname=OVH\\sSAS;s2s-md/tls_cipher=TLSv1.3-TLS_CHACHA20_POLY1305_SHA256;s2s-md/creationtime=1721564601', 
+                        # ':001', 'UID', 'albatros', '0', '1721564597', 'albatros', 'vps-91b2f28b.vps.ovh.net', 
+                        # '001HB8G04', '0', '+iwxz', 'Clk-A62F1D18.vps.ovh.net', 'Clk-A62F1D18.vps.ovh.net', 'MyZBwg==', ':...']
 
-                    uid = str(original_response[8])
-                    nickname = str(original_response[3])
-                    username = str(original_response[6])
-                    hostname = str(original_response[7])
-                    umodes = str(original_response[10])
-                    vhost = str(original_response[11])
-                    if not 'S' in umodes:
-                        remote_ip = self.Base.decode_ip(str(original_response[13]))
-                    else:
-                        remote_ip = '127.0.0.1'
+                        isWebirc = True if 'webirc' in original_response[0] else False
+                        isWebsocket = True if 'websocket' in original_response[0] else False
 
-                    score_connexion = self.first_score
+                        uid = str(original_response[8])
+                        nickname = str(original_response[3])
+                        username = str(original_response[6])
+                        hostname = str(original_response[7])
+                        umodes = str(original_response[10])
+                        vhost = str(original_response[11])
 
-                    self.User.insert(
-                        self.User.UserModel(
-                            uid=uid,
-                            nickname=nickname,
-                            username=username,
-                            hostname=hostname,
-                            umodes=umodes,
-                            vhost=vhost,
-                            isWebirc=isWebirc,
-                            remote_ip=remote_ip,
-                            score_connexion=score_connexion,
-                            connexion_datetime=datetime.now()
+                        if not 'S' in umodes:
+                            remote_ip = self.Base.decode_ip(str(original_response[13]))
+                        else:
+                            remote_ip = '127.0.0.1'
+
+                        # extract realname
+                        realname_list = []
+                        for i in range(14, len(original_response)):
+                            realname_list.append(original_response[i])
+
+                        realname = ' '.join(realname_list)[1:]
+
+                        # Extract Geoip information
+                        pattern = r'^.*geoip=cc=(\S{2}).*$'
+                        geoip_match = re.match(pattern, original_response[0])
+
+                        if geoip_match:
+                            geoip = geoip_match.group(1)
+                        else:
+                            geoip = None
+
+                        score_connexion = self.first_score
+
+                        self.User.insert(
+                            self.User.UserModel(
+                                uid=uid,
+                                nickname=nickname,
+                                username=username,
+                                realname=realname,
+                                hostname=hostname,
+                                umodes=umodes,
+                                vhost=vhost,
+                                isWebirc=isWebirc,
+                                isWebsocket=isWebsocket,
+                                remote_ip=remote_ip,
+                                geoip=geoip,
+                                score_connexion=score_connexion,
+                                connexion_datetime=datetime.now()
+                            )
                         )
-                    )
 
-                    for classe_name, classe_object in self.loaded_classes.items():
-                        classe_object.cmd(original_response)
+                        for classe_name, classe_object in self.loaded_classes.items():
+                            classe_object.cmd(original_response)
+
+                    except Exception as err:
+                        self.Base.logs.error(f'General Error: {err}')
 
                 case 'PRIVMSG':
                     try:
@@ -994,7 +1017,7 @@ class Irc:
                 current_command = cmd[0]
                 uid_to_deauth = self.User.get_uid(fromuser)
                 self.delete_db_admin(uid_to_deauth)
-                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
+                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
 
             case 'auth':
                 # ['auth', 'adator', 'password']
@@ -1016,10 +1039,10 @@ class Irc:
                     if not user_from_db is None:
                         uid_user = self.User.get_uid(user_to_log)
                         self.insert_db_admin(uid_user, user_from_db[1])
-                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
+                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Connexion a {dnickname} réussie!")
                     else:
-                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{current_command}{self.Config.CONFIG_COLOR['noire']} ] - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
+                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Mot de passe incorrecte")
 
                 else:
@@ -1342,7 +1365,7 @@ class Irc:
 
             case 'show_users':
                 for db_user in self.User.UID_DB:
-                    self.send2socket(f":{dnickname} NOTICE {fromuser} :UID : {db_user.uid} - isWebirc: {db_user.isWebirc} - Nickname: {db_user.nickname} - Connection: {db_user.connexion_datetime}")
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :UID : {db_user.uid} - isWebirc: {db_user.isWebirc} - isWebSocket: {db_user.isWebsocket} - Nickname: {db_user.nickname} - Connection: {db_user.connexion_datetime}")
 
             case 'show_admins':
                 for db_admin in self.Admin.UID_ADMIN_DB:
@@ -1353,7 +1376,7 @@ class Irc:
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : {uptime}')
 
             case 'copyright':
-                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Config.current_version} Developped by adator® and dktmb® #')
+                self.send2socket(f':{dnickname} NOTICE {fromuser} : # Defender V.{self.Config.current_version} Developped by adator® #')
 
             case 'checkversion':
 
