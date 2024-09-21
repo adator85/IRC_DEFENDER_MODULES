@@ -655,6 +655,30 @@ class Irc:
                     #     self.Base.create_thread(self.abuseipdb_scan, (cmd[7], ))
                     pass
 
+                case 'SQUIT':
+                    # ['@msgid=QOEolbRxdhpVW5c8qLkbAU;time=2024-09-21T17:33:16.547Z', 'SQUIT', 'defender.deb.biz.st', ':Connection', 'closed']
+                    server_hostname = interm_response[1]
+                    uid_to_delete = ''
+                    for s_user in self.User.UID_DB:
+                        if s_user.hostname == server_hostname and 'S' in s_user.umodes:
+                            uid_to_delete = s_user.uid
+
+                    self.User.delete(uid_to_delete)
+                    self.Channel.delete_user_from_all_channel(uid_to_delete)
+
+                case 'SJOIN':
+                    # If Server Join channels
+                    # [':11Z', 'SJOIN', '1726940687', '#welcome', '+', ':11ZAAAAAB']
+                    channel_joined = original_response[3]
+                    server_uid = self.Base.clean_uid(original_response[5])
+
+                    self.Channel.insert(
+                        self.Channel.ChannelModel(
+                            name=channel_joined,
+                            uids=[server_uid]
+                        )
+                    )
+
                 case 'REPUTATION':
                     # :001 REPUTATION 91.168.141.239 118
                     try:

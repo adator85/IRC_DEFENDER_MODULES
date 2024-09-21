@@ -1624,6 +1624,11 @@ class Defender():
                 try:
                     nickoruid = cmd[1]
                     UserObject = self.User.get_User(nickoruid)
+                    channels: list = []
+                    for chan in self.Channel.UID_CHANNEL_DB:
+                        for uid_in_chan in chan.uids:
+                            if self.Base.clean_uid(uid_in_chan) == UserObject.uid:
+                                channels.append(chan.name)
 
                     if not UserObject is None:
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : UID              : {UserObject.uid}')
@@ -1638,6 +1643,7 @@ class Defender():
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : WebWebsocket     : {UserObject.isWebsocket}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : REPUTATION       : {UserObject.score_connexion}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : MODES            : {UserObject.umodes}')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : CHANNELS         : {channels}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : CONNECTION TIME  : {UserObject.connexion_datetime}')
                     else:
                         self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} : This user {nickoruid} doesn't exist")
