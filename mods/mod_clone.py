@@ -347,8 +347,10 @@ class Clone():
 
                         case 'list':
                             try:
+                                clone_count = len(self.Clone.UID_CLONE_DB)
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> Number of connected clones: {clone_count}')
                                 for clone_name in self.Clone.UID_CLONE_DB:
-                                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> Nickname: {clone_name.nickname} | Username: {clone_name.username}')
+                                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> Nickname: {clone_name.nickname} | Username: {clone_name.username} | Realname: {clone_name.realname} | Vhost: {clone_name.vhost} | Connected: {clone_name.connected}')
                             except Exception as err:
                                 self.Logs.error(f'{err}')
 
