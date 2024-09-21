@@ -1624,13 +1624,14 @@ class Defender():
                 try:
                     nickoruid = cmd[1]
                     UserObject = self.User.get_User(nickoruid)
-                    channels: list = []
-                    for chan in self.Channel.UID_CHANNEL_DB:
-                        for uid_in_chan in chan.uids:
-                            if self.Base.clean_uid(uid_in_chan) == UserObject.uid:
-                                channels.append(chan.name)
 
                     if not UserObject is None:
+                        channels: list = []
+                        for chan in self.Channel.UID_CHANNEL_DB:
+                            for uid_in_chan in chan.uids:
+                                if self.Base.clean_uid(uid_in_chan) == UserObject.uid:
+                                    channels.append(chan.name)
+
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : UID              : {UserObject.uid}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : NICKNAME         : {UserObject.nickname}')
                         self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : USERNAME         : {UserObject.username}')
