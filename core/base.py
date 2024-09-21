@@ -26,8 +26,6 @@ class Base:
         self.engine, self.cursor = self.db_init()               # Initialisation de la connexion a la base de données
         self.__create_db()                                      # Initialisation de la base de données
 
-        self.db_create_first_admin()                            # Créer un nouvel admin si la base de données est vide
-
     def __set_current_defender_version(self) -> None:
         """This will put the current version of Defender
         located in version.json

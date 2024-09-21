@@ -29,7 +29,7 @@ class Irc:
 
         # Liste des commandes internes du bot
         self.commands_level = {
-            0: ['help', 'auth', 'copyright', 'uptime'],
+            0: ['help', 'auth', 'copyright', 'uptime', 'firstauth'],
             1: ['load','reload','unload', 'deauth', 'checkversion'],
             2: ['show_modules', 'show_timers', 'show_threads', 'show_channels', 'show_users', 'show_admins'],
             3: ['quit', 'restart','addaccess','editaccess', 'delaccess']
@@ -1019,6 +1019,56 @@ class Irc:
                 self.delete_db_admin(uid_to_deauth)
                 self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
 
+            case 'firstauth':
+                # firstauth OWNER_NICKNAME OWNER_PASSWORD
+                current_nickname = self.User.get_nickname(fromuser)
+                current_uid = self.User.get_uid(fromuser)
+                current_command = str(cmd[0])
+
+                query = f"SELECT count(id) as c FROM {self.Config.table_admin}"
+                result = self.Base.db_execute_query(query)
+                result_db = result.fetchone()
+
+                if result_db[0] > 0:
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :You can't use this command anymore ! Please use [{self.Config.SERVICE_PREFIX}auth] instead")
+                    return False
+
+                if current_nickname is None:
+                    self.Base.logs.critical(f"This nickname [{fromuser}] don't exist")
+                    return False
+
+                # Credentials sent from the user
+                cmd_owner = str(cmd[1])
+                cmd_password = str(cmd[2])
+
+                # Credentials coming from the Configuration
+                config_owner    = self.Config.OWNER
+                config_password = self.Config.PASSWORD
+
+                if current_nickname != cmd_owner:
+                    self.Base.logs.critical(f"The current nickname [{fromuser}] is different than the nickname sent [{cmd_owner}] !")
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :The current nickname [{fromuser}] is different than the nickname sent [{cmd_owner}] !")
+                    return False
+
+                if current_nickname != config_owner:
+                    self.Base.logs.critical(f"The current nickname [{current_nickname}] is different than the configuration owner [{config_owner}] !")
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :The current nickname [{current_nickname}] is different than the configuration owner [{config_owner}] !")
+                    return False
+
+                if cmd_owner != config_owner:
+                    self.Base.logs.critical(f"The nickname sent [{cmd_owner}] is different than the configuration owner [{config_owner}] !")
+                    self.send2socket(f":{dnickname} NOTICE {fromuser} :The nickname sent [{cmd_owner}] is different than the configuration owner [{config_owner}] !")
+                    return False
+
+                if cmd_owner == config_owner and cmd_password == config_password:
+                    self.Base.db_create_first_admin()
+                    self.insert_db_admin(current_uid, 5)
+                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
+                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Connexion a {dnickname} réussie!")
+                else:
+                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
+                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Mot de passe incorrecte")
+
             case 'auth':
                 # ['auth', 'adator', 'password']
                 current_command = cmd[0]
@@ -1051,6 +1101,10 @@ class Irc:
             case 'addaccess':
                 try:
                     # .addaccess adator 5 password
+                    if len(cmd) < 4:
+                        self.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} addaccess [nickname] [level] [password]')
+                        self.send2socket(f':{dnickname} NOTICE {fromuser} : level: from 1 to 4')
+
                     newnickname = cmd[1]
                     newlevel = self.Base.int_if_possible(cmd[2])
                     password = cmd[3]
