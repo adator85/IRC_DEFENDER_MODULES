@@ -441,9 +441,9 @@ class Defender():
             jailed_nickname = get_reputation.nickname
             jailed_score = get_reputation.score
 
-            color_red = self.Config.CONFIG_COLOR['rouge']
-            color_black = self.Config.CONFIG_COLOR['noire']
-            color_bold = self.Config.CONFIG_COLOR['gras']
+            color_red = self.Config.COLORS.red
+            color_black = self.Config.COLORS.black
+            color_bold = self.Config.COLORS.bold
             service_id = self.Config.SERVICE_ID
             service_prefix = self.Config.SERVICE_PREFIX
             reputation_ban_all_chan = self.ModConfig.reputation_ban_all_chan
@@ -478,8 +478,8 @@ class Defender():
             ban_all_chan = self.ModConfig.reputation_ban_all_chan
             service_id = self.Config.SERVICE_ID
             dchanlog = self.Config.SERVICE_CHANLOG
-            color_red = self.Config.CONFIG_COLOR['rouge']
-            color_black = self.Config.CONFIG_COLOR['noire']
+            color_red = self.Config.COLORS.red
+            color_black = self.Config.COLORS.black
             salon_jail = self.Config.SALON_JAIL
 
             if reputation_flag == 0:
@@ -559,8 +559,8 @@ class Defender():
         flood_timer = self.ModConfig.flood_timer
         service_id = self.Config.SERVICE_ID
         dnickname = self.Config.SERVICE_NICKNAME
-        color_red = self.Config.CONFIG_COLOR['rouge']
-        color_bold = self.Config.CONFIG_COLOR['gras']
+        color_red = self.Config.COLORS.red
+        color_bold = self.Config.COLORS.bold
         
         get_detected_uid = self.User.get_uid(detected_user)
         get_detected_nickname = self.User.get_nickname(detected_user)
@@ -634,7 +634,7 @@ class Defender():
                 connection = (remote_ip, self.Base.int_if_possible(port))
                 newSocket.connect(connection)
 
-                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}PROXY_SCAN{self.Config.CONFIG_COLOR['noire']} ] {fullname} ({remote_ip}) :     Port [{str(port)}] ouvert sur l'adresse ip [{remote_ip}]")
+                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.COLORS.red}PROXY_SCAN{self.Config.COLORS.black} ] {fullname} ({remote_ip}) :     Port [{str(port)}] ouvert sur l'adresse ip [{remote_ip}]")
                 # print(f"=======> Le port {str(port)} est ouvert !!")
                 self.Base.running_sockets.append(newSocket)
                 # print(newSocket)
@@ -697,7 +697,7 @@ class Defender():
             self.Logs.info(f"Connexion of {fullname} ({remote_ip}) using ports : {str(matching_ports)}")
 
             if matching_ports:
-                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}PSUTIL_SCAN{self.Config.CONFIG_COLOR['noire']} ] {fullname} ({remote_ip}) : is using ports {matching_ports}")
+                self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.COLORS.red}PSUTIL_SCAN{self.Config.COLORS.black} ] {fullname} ({remote_ip}) : is using ports {matching_ports}")
 
             return matching_ports
 
@@ -777,8 +777,8 @@ class Defender():
 
             service_id = self.Config.SERVICE_ID
             service_chanlog = self.Config.SERVICE_CHANLOG
-            color_red = self.Config.CONFIG_COLOR['rouge']
-            color_black = self.Config.CONFIG_COLOR['noire']
+            color_red = self.Config.COLORS.red
+            color_black = self.Config.COLORS.black
 
             # pseudo!ident@host
             fullname = f'{nickname}!{username}@{hostname}'
@@ -845,8 +845,8 @@ class Defender():
 
         service_id = self.Config.SERVICE_ID
         service_chanlog = self.Config.SERVICE_CHANLOG
-        color_red = self.Config.CONFIG_COLOR['rouge']
-        color_black = self.Config.CONFIG_COLOR['noire']
+        color_red = self.Config.COLORS.red
+        color_black = self.Config.COLORS.black
 
         url = f'https://freeipapi.com/api/json/{remote_ip}'
 
@@ -933,8 +933,8 @@ class Defender():
 
         service_id = self.Config.SERVICE_ID
         service_chanlog = self.Config.SERVICE_CHANLOG
-        color_red = self.Config.CONFIG_COLOR['rouge']
-        color_black = self.Config.CONFIG_COLOR['noire']
+        color_red = self.Config.COLORS.red
+        color_black = self.Config.COLORS.black
 
         url = f"https://developers18334.cloudfilt.com/"
 
@@ -1233,8 +1233,8 @@ class Defender():
 
                     self.Logs.debug(f"IP de {jailed_nickname} : {jailed_IP}")
                     link = self.Config.SERVEUR_LINK
-                    color_green = self.Config.CONFIG_COLOR['verte']
-                    color_black = self.Config.CONFIG_COLOR['noire']
+                    color_green = self.Config.COLORS.green
+                    color_black = self.Config.COLORS.black
 
                     if release_code == get_reputation.secret_code:
                         self.Irc.send2socket(f':{dnickname} PRIVMSG {jailed_salon} : Bon mot de passe. Allez du vent !')
@@ -1278,13 +1278,13 @@ class Defender():
                         if activation == 'on':
 
                             if self.ModConfig.reputation == 1:
-                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}REPUTATION{self.Config.CONFIG_COLOR['noire']} ] : Already activated")
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}REPUTATION{self.Config.COLORS.black} ] : Already activated")
                                 return False
 
                             # self.update_db_configuration('reputation', 1)
                             self.__update_configuration(key, 1)
 
-                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}REPUTATION{self.Config.CONFIG_COLOR['noire']} ] : Activated by {fromuser}")
+                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}REPUTATION{self.Config.COLORS.black} ] : Activated by {fromuser}")
                             self.Irc.send2socket(f":{service_id} JOIN {jail_chan}")
                             self.Irc.send2socket(f":{service_id} SAMODE {jail_chan} +{dumodes} {dnickname}")
                             self.Irc.send2socket(f":{service_id} MODE {jail_chan} +{jail_chan_mode}")
@@ -1300,12 +1300,12 @@ class Defender():
                         if activation == 'off':
 
                             if self.ModConfig.reputation == 0:
-                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}REPUTATION{self.Config.CONFIG_COLOR['noire']} ] : Already deactivated")
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}REPUTATION{self.Config.COLORS.black} ] : Already deactivated")
                                 return False
 
                             self.__update_configuration(key, 0)
 
-                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}REPUTATION{self.Config.CONFIG_COLOR['noire']} ] : Deactivated by {fromuser}")
+                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.red}REPUTATION{self.Config.COLORS.black} ] : Deactivated by {fromuser}")
                             self.Irc.send2socket(f":{service_id} SAMODE {jail_chan} -{dumodes} {dnickname}")
                             self.Irc.send2socket(f":{service_id} MODE {jail_chan} -sS")
                             self.Irc.send2socket(f":{service_id} PART {jail_chan}")
@@ -1335,23 +1335,23 @@ class Defender():
                                 if get_value == 'on':
 
                                     if self.ModConfig.reputation_ban_all_chan == 1:
-                                        self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}BAN ON ALL CHANS{self.Config.CONFIG_COLOR['noire']} ] : Already activated")
+                                        self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.red}BAN ON ALL CHANS{self.Config.COLORS.black} ] : Already activated")
                                         return False
 
                                     # self.update_db_configuration(key, 1)
                                     self.__update_configuration(key, 1)
 
-                                    self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}BAN ON ALL CHANS{self.Config.CONFIG_COLOR["noire"]} ] : Activated by {fromuser}')
+                                    self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}BAN ON ALL CHANS{self.Config.COLORS.black} ] : Activated by {fromuser}')
 
                                 elif get_value == 'off':
                                     if self.ModConfig.reputation_ban_all_chan == 0:
-                                        self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}BAN ON ALL CHANS{self.Config.CONFIG_COLOR['noire']} ] : Already deactivated")
+                                        self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.red}BAN ON ALL CHANS{self.Config.COLORS.black} ] : Already deactivated")
                                         return False
 
                                     # self.update_db_configuration(key, 0)
                                     self.__update_configuration(key, 0)
 
-                                    self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}BAN ON ALL CHANS{self.Config.CONFIG_COLOR["noire"]} ] : Deactivated by {fromuser}')
+                                    self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}BAN ON ALL CHANS{self.Config.COLORS.black} ] : Deactivated by {fromuser}')
 
                             case 'limit':
                                 reputation_seuil = int(cmd[3])
@@ -1360,7 +1360,7 @@ class Defender():
                                 # self.update_db_configuration(key, reputation_seuil)
                                 self.__update_configuration(key, reputation_seuil)
 
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}REPUTATION SEUIL{self.Config.CONFIG_COLOR["noire"]} ] : Limit set to {str(reputation_seuil)} by {fromuser}')
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}REPUTATION SEUIL{self.Config.COLORS.black} ] : Limit set to {str(reputation_seuil)} by {fromuser}')
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Reputation set to {reputation_seuil}')
 
                             case 'timer':
@@ -1368,7 +1368,7 @@ class Defender():
                                 key = 'reputation_timer'
                                 self.__update_configuration(key, reputation_timer)
 
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}REPUTATION TIMER{self.Config.CONFIG_COLOR["noire"]} ] : Timer set to {str(reputation_timer)} minute(s) by {fromuser}')
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}REPUTATION TIMER{self.Config.COLORS.black} ] : Timer set to {str(reputation_timer)} minute(s) by {fromuser}')
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Reputation set to {reputation_timer}')
 
                             case 'score_after_release':
@@ -1376,7 +1376,7 @@ class Defender():
                                 key = 'reputation_score_after_release'
                                 self.__update_configuration(key, reputation_score_after_release)
 
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}REPUTATION SCORE AFTER RELEASE{self.Config.CONFIG_COLOR["noire"]} ] : Reputation score after release set to {str(reputation_score_after_release)} by {fromuser}')
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}REPUTATION SCORE AFTER RELEASE{self.Config.COLORS.black} ] : Reputation score after release set to {str(reputation_score_after_release)} by {fromuser}')
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Reputation score after release set to {reputation_score_after_release}')
 
                             case 'security_group':
@@ -1384,7 +1384,7 @@ class Defender():
                                 key = 'reputation_sg'
                                 self.__update_configuration(key, reputation_sg)
 
-                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["verte"]}REPUTATION SECURITY-GROUP{self.Config.CONFIG_COLOR["noire"]} ] : Reputation Security-group set to {str(reputation_sg)} by {fromuser}')
+                                self.Irc.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}REPUTATION SECURITY-GROUP{self.Config.COLORS.black} ] : Reputation Security-group set to {str(reputation_sg)} by {fromuser}')
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Reputation score after release set to {reputation_sg}')
 
                             case _:
@@ -1414,9 +1414,9 @@ class Defender():
                 # .proxy_scan set psutil_scan on/off         --> Active les informations de connexion a la machine locale
                 # .proxy_scan set abuseipdb_scan on/off      --> Active le scan via l'api abuseipdb
                 len_cmd = len(cmd)
-                color_green = self.Config.CONFIG_COLOR['verte']
-                color_red = self.Config.CONFIG_COLOR['rouge']
-                color_black = self.Config.CONFIG_COLOR['noire']
+                color_green = self.Config.COLORS.green
+                color_red = self.Config.COLORS.red
+                color_black = self.Config.COLORS.black
 
                 if len_cmd == 4:
                     set_key = str(cmd[1]).lower()
@@ -1548,21 +1548,21 @@ class Defender():
                         key = 'flood'
                         if activation == 'on':
                             if self.ModConfig.flood == 1:
-                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Already activated")
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}FLOOD{self.Config.COLORS.black} ] : Already activated")
                                 return False
 
                             self.__update_configuration(key, 1)
 
-                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Activated by {fromuser}")
+                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}FLOOD{self.Config.COLORS.black} ] : Activated by {fromuser}")
 
                         if activation == 'off':
                             if self.ModConfig.flood == 0:
-                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Already Deactivated")
+                                self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.red}FLOOD{self.Config.COLORS.black} ] : Already Deactivated")
                                 return False
 
                             self.__update_configuration(key, 0)
 
-                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Deactivated by {fromuser}")
+                            self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}FLOOD{self.Config.COLORS.black} ] : Deactivated by {fromuser}")
 
                     if len_cmd == 4:
                         set_key = str(cmd[2]).lower()
@@ -1574,21 +1574,21 @@ class Defender():
                                     set_value = int(cmd[3])
                                     self.__update_configuration(key, set_value)
 
-                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Flood message set to {set_value} by {fromuser}")
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}FLOOD{self.Config.COLORS.black} ] : Flood message set to {set_value} by {fromuser}")
 
                                 case 'flood_time':
                                     key = 'flood_time'
                                     set_value = int(cmd[3])
                                     self.__update_configuration(key, set_value)
 
-                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Flood time set to {set_value} by {fromuser}")
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}FLOOD{self.Config.COLORS.black} ] : Flood time set to {set_value} by {fromuser}")
 
                                 case 'flood_timer':
                                     key = 'flood_timer'
                                     set_value = int(cmd[3])
                                     self.__update_configuration(key, set_value)
 
-                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}FLOOD{self.Config.CONFIG_COLOR['noire']} ] : Flood timer set to {set_value} by {fromuser}")
+                                    self.Irc.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}FLOOD{self.Config.COLORS.black} ] : Flood timer set to {set_value} by {fromuser}")
 
                                 case _:
                                     pass
@@ -1597,9 +1597,9 @@ class Defender():
                     self.Logs.error(f"{self.__class__.__name__} Value Error : {ve}")
 
             case 'status':
-                color_green = self.Config.CONFIG_COLOR['verte']
-                color_red = self.Config.CONFIG_COLOR['rouge']
-                color_black = self.Config.CONFIG_COLOR['noire']
+                color_green = self.Config.COLORS.green
+                color_red = self.Config.COLORS.red
+                color_black = self.Config.COLORS.black
                 try:
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : [{color_green if self.ModConfig.reputation == 1 else color_red}Reputation{color_black}]                           ==> {self.ModConfig.reputation}')
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :           reputation_seuil             ==> {self.ModConfig.reputation_seuil}')

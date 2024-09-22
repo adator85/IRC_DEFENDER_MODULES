@@ -175,8 +175,8 @@ class Irc:
         except AttributeError as atte:
             self.Base.logs.critical(f"AttributeError: {atte}")
         except Exception as e:
-            self.Base.logs.critical(f"Exception: {e}")
-            self.Base.logs.critical(traceback.print_exc())
+            self.Base.logs.critical(f"General Error: {e}")
+            self.Base.logs.critical(traceback.format_exc())
 
     def __link(self, writer:Union[socket.socket, SSLSocket]) -> None:
         """Créer le link et envoyer les informations nécessaires pour la 
@@ -222,7 +222,7 @@ class Irc:
             writer.send(f":{service_id} MODE {chan} +{cmodes}\r\n".encode(charset))
             writer.send(f":{service_id} MODE {chan} +{umodes} {service_id}\r\n".encode(charset))
 
-            self.Base.logs.debug('Link information sent to the server')
+            self.Base.logs.debug('>> Link information sent to the server')
 
             return None
         except AttributeError as ae:
@@ -249,7 +249,6 @@ class Irc:
         """
         try:
             with self.Base.lock:
-                # print(f">{str(send_message)}")
                 self.IrcSocket.send(f"{send_message}\r\n".encode(self.CHARSET[0]))
                 self.Base.logs.debug(f'{send_message}')
 
@@ -267,6 +266,41 @@ class Irc:
             self.Base.logs.error(f"SSLError: {se} - {send_message}")
         except OSError as oe:
             self.Base.logs.error(f"OSError: {oe} - {send_message}")
+
+    def sendNotice(self, msg:str, nickname: str) -> None:
+        """Sending NOTICE by batches
+
+        Args:
+            msg (str): The message to send to the server
+            nickname (str): The reciever Nickname
+        """
+        batch_size = self.Config.BATCH_SIZE
+        service_nickname = self.Config.SERVICE_NICKNAME
+
+        for i in range(0, len(str(msg)), batch_size):
+            batch = str(msg)[i:i+batch_size]
+            self.send2socket(f":{service_nickname} NOTICE {nickname} :{batch}")
+
+    def sendPrivMsg(self, msg: str, channel: str = None, nickname: str = None):
+        """Sending PRIVMSG to a channel or to a nickname by batches
+        could be either channel or nickname not both together
+        Args:
+            msg (str): The message to send
+            channel (str, optional): The receiver channel. Defaults to None.
+            nickname (str, optional): The reciever nickname. Defaults to None.
+        """
+        batch_size = self.Config.BATCH_SIZE
+        service_nickname = self.Config.SERVICE_NICKNAME
+
+        if not channel is None:
+            for i in range(0, len(str(msg)), batch_size):
+                batch = str(msg)[i:i+batch_size]
+                self.send2socket(f":{service_nickname} PRIVMSG {channel} :{batch}")
+
+        if not nickname is None:
+            for i in range(0, len(str(msg)), batch_size):
+                batch = str(msg)[i:i+batch_size]
+                self.send2socket(f":{service_nickname} PRIVMSG {nickname} :{batch}")
 
     def send_response(self, responses:list[bytes]) -> None:
         try:
@@ -452,11 +486,11 @@ class Irc:
 
         except ModuleNotFoundError as moduleNotFound:
             self.Base.logs.error(f"MODULE_NOT_FOUND: {moduleNotFound}")
-            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}MODULE_NOT_FOUND{self.Config.CONFIG_COLOR['noire']} ]: {moduleNotFound}")
+            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.COLORS.red}MODULE_NOT_FOUND{self.Config.COLORS.black} ]: {moduleNotFound}")
             self.Base.db_delete_module(module_name)
         except Exception as e:
             self.Base.logs.error(f"Something went wrong with a module you want to load : {e}")
-            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.CONFIG_COLOR['rouge']}ERROR{self.Config.CONFIG_COLOR['noire']} ]: {e}")
+            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.COLORS.red}ERROR{self.Config.COLORS.black} ]: {e}")
 
     def insert_db_admin(self, uid:str, level:int) -> None:
 
@@ -752,6 +786,7 @@ class Irc:
                                 self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} : New Version available {version}")
 
                         # Initialisation terminé aprés le premier PING
+                        self.sendPrivMsg(msg=f'[{self.Config.COLORS.green}INFORMATION{self.Config.COLORS.nogc}] >> Defender is ready', channel='#devservices')
                         self.INIT = 0
 
                 case _:
@@ -991,6 +1026,9 @@ class Irc:
 
         except IndexError as ie:
             self.Base.logs.error(f"{ie} / {original_response} / length {str(len(original_response))}")
+        except Exception as err:
+            self.Base.logs.error(f"General Error: {err}")
+            self.Base.logs.error(f"General Error: {traceback.format_exc()}")
 
     def _hcmds(self, user: str, channel: Union[str, None], cmd: list, fullcmd: list = []) -> None:
         """_summary_
@@ -1031,7 +1069,7 @@ class Irc:
             case 'notallowed':
                 try:
                     current_command = cmd[0]
-                    self.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR["rouge"]}{current_command}{self.Config.CONFIG_COLOR["noire"]} ] - Accès Refusé à {self.User.get_nickname(fromuser)}')
+                    self.send2socket(f':{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.red}{current_command}{self.Config.COLORS.black} ] - Accès Refusé à {self.User.get_nickname(fromuser)}')
                     self.send2socket(f':{dnickname} NOTICE {fromuser} : Accès Refusé')
                 except IndexError as ie:
                     self.Base.logs.error(f'{ie}')
@@ -1041,7 +1079,7 @@ class Irc:
                 current_command = cmd[0]
                 uid_to_deauth = self.User.get_uid(fromuser)
                 self.delete_db_admin(uid_to_deauth)
-                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
+                self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.red}{str(current_command).upper()} ]{self.Config.COLORS.black} - {self.User.get_nickname(fromuser)} est désormais déconnecter de {dnickname}")
 
             case 'firstauth':
                 # firstauth OWNER_NICKNAME OWNER_PASSWORD
@@ -1087,10 +1125,10 @@ class Irc:
                 if cmd_owner == config_owner and cmd_password == config_password:
                     self.Base.db_create_first_admin()
                     self.insert_db_admin(current_uid, 5)
-                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
+                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}{str(current_command).upper()} ]{self.Config.COLORS.black} - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
                     self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Connexion a {dnickname} réussie!")
                 else:
-                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
+                    self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.red}{str(current_command).upper()} ]{self.Config.COLORS.black} - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
                     self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Mot de passe incorrecte")
 
             case 'auth':
@@ -1113,10 +1151,10 @@ class Irc:
                     if not user_from_db is None:
                         uid_user = self.User.get_uid(user_to_log)
                         self.insert_db_admin(uid_user, user_from_db[1])
-                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['verte']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
+                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.green}{str(current_command).upper()} ]{self.Config.COLORS.black} - {self.User.get_nickname(fromuser)} est désormais connecté a {dnickname}")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Connexion a {dnickname} réussie!")
                     else:
-                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.CONFIG_COLOR['rouge']}{str(current_command).upper()} ]{self.Config.CONFIG_COLOR['noire']} - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
+                        self.send2socket(f":{dnickname} PRIVMSG {dchanlog} :[ {self.Config.COLORS.red}{str(current_command).upper()} ]{self.Config.COLORS.black} - {self.User.get_nickname(fromuser)} a tapé un mauvais mot de pass")
                         self.send2socket(f":{self.Config.SERVICE_NICKNAME} NOTICE {fromuser} :Mot de passe incorrecte")
 
                 else:
@@ -1255,13 +1293,13 @@ class Irc:
                 else:
                     user_level = 0
 
-                self.send2socket(f':{dnickname} NOTICE {fromuser} : **************** LIST DES COMMANDES *****************')
+                self.send2socket(f':{dnickname} NOTICE {fromuser} : ***************** LISTE DES COMMANDES *****************')
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : ')
                 for levDef in self.commands_level:
-                    
+
                     if int(user_level) >= int(count_level_definition):
 
-                        self.send2socket(f':{dnickname} NOTICE {fromuser} : **************** {self.Config.CONFIG_COLOR["noire"]}[ {self.Config.CONFIG_COLOR["verte"]}LEVEL {str(levDef)} {self.Config.CONFIG_COLOR["noire"]}] ****************')
+                        self.send2socket(f':{dnickname} NOTICE {fromuser} : ***************** {self.Config.COLORS.nogc}[ {self.Config.COLORS.green}LEVEL {str(levDef)} {self.Config.COLORS.nogc}] *****************')
                         count_commands = 0
                         help = ''
                         for comm in self.commands_level[count_level_definition]:
@@ -1275,7 +1313,7 @@ class Irc:
 
                     count_level_definition += 1
 
-                self.send2socket(f':{dnickname} NOTICE {fromuser} : **************** FIN DES COMMANDES *****************')
+                self.send2socket(f':{dnickname} NOTICE {fromuser} : ***************** FIN DES COMMANDES *****************')
 
             case 'load':
 
@@ -1411,9 +1449,9 @@ class Irc:
                             found = True
 
                     if found:
-                        self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.CONFIG_COLOR['verte']}Loaded{self.Config.CONFIG_COLOR['nogc']}")
+                        self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.COLORS.green}Loaded{self.Config.COLORS.nogc}")
                     else:
-                        self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.CONFIG_COLOR['rouge']}Not Loaded{self.Config.CONFIG_COLOR['nogc']}")
+                        self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.COLORS.red}Not Loaded{self.Config.COLORS.nogc}")
 
                     found = False
 

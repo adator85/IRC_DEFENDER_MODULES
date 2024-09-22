@@ -229,11 +229,11 @@ class Votekick():
             if chan.channel_name == channel:
                 target_user = self.User.get_nickname(chan.target_user)
                 if chan.vote_for > chan.vote_against:
-                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll be kicked from the channel')
+                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.COLORS.bold}{target_user}{self.Config.COLORS.nogc} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll be kicked from the channel')
                     self.Irc.send2socket(f":{dnickname} KICK {channel} {target_user} Following the vote, you are not welcome in {channel}")
                     self.Channel.delete_user_from_channel(channel, self.User.get_uid(target_user))
                 elif chan.vote_for <= chan.vote_against:
-                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll remain in the channel')
+                    self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.COLORS.bold}{target_user}{self.Config.COLORS.nogc} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll remain in the channel')
 
                 # Init the system
                 if self.init_vote_system(channel):
@@ -471,10 +471,10 @@ class Votekick():
                                 if chan.channel_name == channel:
                                     target_user = self.User.get_nickname(chan.target_user)
                                     if chan.vote_for > chan.vote_against:
-                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll be kicked from the channel')
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.COLORS.bold}{target_user}{self.Config.COLORS.nogc} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll be kicked from the channel')
                                         self.Irc.send2socket(f":{dnickname} KICK {channel} {target_user} Following the vote, you are not welcome in {channel}")
                                     elif chan.vote_for <= chan.vote_against:
-                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.CONFIG_COLOR["gras"]}{target_user}{self.Config.CONFIG_COLOR["nogc"]} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll remain in the channel')
+                                        self.Irc.send2socket(f':{dnickname} PRIVMSG {channel} :User {self.Config.COLORS.bold}{target_user}{self.Config.COLORS.nogc} has {chan.vote_against} votes against and {chan.vote_for} votes for. For this reason, it\'ll remain in the channel')
                                     
                                     # Init the system
                                     if self.init_vote_system(channel):

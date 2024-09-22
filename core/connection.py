@@ -1,4 +1,6 @@
-import socket, ssl
+import socket
+import ssl
+import traceback
 from ssl import SSLSocket
 from core.loadConf import Config
 from core.Model import Clones
@@ -15,7 +17,8 @@ class Connection:
         self.nickname = nickname
         self.username = username
         self.realname = realname
-        self.clone_chanlog = self.Config.SALON_CLONES
+        self.clone_chanlog = self.Config.CLONE_CHANNEL
+        self.clone_log_exempt = self.Config.CLONE_LOG_HOST_EXEMPT
         self.channels:list[str] = channels
         self.CHARSET = ['utf-8', 'iso-8859-1']
         self.Clones = CloneObject
@@ -157,6 +160,7 @@ class Connection:
             self.Base.logs.error(f"OS Error __connect_to_irc: {soe}")
         except AttributeError as atte:
             self.Base.logs.critical(f"{atte}")
+            self.Base.logs.critical(f"{traceback.format_exc()}")
         except Exception as e:
             self.Base.logs.error(f"Exception: {e}")
 
@@ -190,9 +194,10 @@ class Connection:
                         for channel in self.channels:
                             self.send2socket(f"JOIN {channel}")
 
-                        self.send2socket(f"JOIN {self.clone_chanlog}")
+                        self.send2socket(f"JOIN {self.clone_chanlog} {self.Config.CLONE_CHANNEL_PASSWORD}")
 
                         return None
+
                     case '422':
                         # Missing MOTD
                         self.currentCloneObject.connected = True
@@ -200,7 +205,15 @@ class Connection:
                         for channel in self.channels:
                             self.send2socket(f"JOIN {channel}")
 
-                        self.send2socket(f"JOIN {self.clone_chanlog}")
+                        self.send2socket(f"JOIN {self.clone_chanlog} {self.Config.CLONE_CHANNEL_PASSWORD}")
+                        return None
+
+                    case '433':
+                        # Nickname already in use
+                        self.currentCloneObject.connected = False
+                        self.currentCloneObject.init = False
+                        self.send2socket(f'QUIT :Thanks and goodbye')
+                        self.Base.logs.warning(f"Nickname {self.currentCloneObject.nickname} already in use >> Clone should be disconnected")
                         return None
 
                     case 'PRIVMSG':
@@ -214,13 +227,20 @@ class Connection:
                             for i in range(3, len(response)):
                                     message.append(response[i])
                             final_message = ' '.join(message)
-                            self.send2socket(f"PRIVMSG {self.clone_chanlog} :{fullname} => {final_message[1:]}")
+
+                            exampt = False
+                            for log_exception in self.clone_log_exempt:
+                                if log_exception in fullname:
+                                    exampt = True
+
+                            if not exampt:
+                                self.send2socket(f"PRIVMSG {self.clone_chanlog} :{fullname} => {final_message[1:]}")
 
                         if nickname == self.Config.SERVICE_NICKNAME:
                             command = str(response[3]).replace(':','')
 
                             if command == 'KILL':
-                                self.send2socket(f'QUIT :Thanks and goodbye', disconnect=True)
+                                self.send2socket(f'QUIT :Thanks and goodbye')
 
                             if command == 'JOIN':
                                 channel_to_join = str(response[4])

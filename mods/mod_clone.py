@@ -58,6 +58,11 @@ class Clone():
         # Load module configuration (Mandatory)
         self.__load_module_configuration()
 
+        self.Base.db_query_channel(action='add', module_name=self.module_name, channel_name=self.Config.CLONE_CHANNEL)
+        self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} JOIN {self.Config.CLONE_CHANNEL}")
+        self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.CLONE_CHANNEL} +nts")
+        self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.CLONE_CHANNEL} +k {self.Config.CLONE_CHANNEL_PASSWORD}")
+
     def __set_commands(self, commands:dict[int, list[str]]) -> None:
         """### Rajoute les commandes du module au programme principal
 
@@ -120,6 +125,8 @@ class Clone():
         for clone in self.ModConfig.clone_nicknames:
             self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone} :KILL')
 
+        self.Base.db_query_channel(action='del', module_name=self.module_name, channel_name=self.Config.CLONE_CHANNEL)
+        self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PART {self.Config.CLONE_CHANNEL}")
         return None
 
     def thread_clone_clean_up(self, wait: float):
@@ -139,6 +146,11 @@ class Clone():
                     self.Logs.debug(f'<<{clone_nickname}>> object has been deleted')
 
             del clone_to_kill
+
+            # If LIST empty then stop this thread
+            if not self.Clone.UID_CLONE_DB:
+                break
+
             time.sleep(wait)
 
     def thread_change_hostname(self):
@@ -166,7 +178,7 @@ class Clone():
                     break
 
     def thread_create_clones_with_interval(self, number_of_clones:int, channels: list, connection_interval: float):
-        
+
         for i in range(number_of_clones):
             nickname, username, realname = self.generate_names()
             self.Base.create_thread(
@@ -289,6 +301,7 @@ class Clone():
 
                         case 'connect':
                             try:
+                                # clone connect 5
                                 number_of_clones = int(cmd[2])
                                 connection_interval = int(cmd[3]) if len(cmd) == 4 else 0.5
                                 self.Base.create_thread(
@@ -350,7 +363,7 @@ class Clone():
                                 clone_count = len(self.Clone.UID_CLONE_DB)
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> Number of connected clones: {clone_count}')
                                 for clone_name in self.Clone.UID_CLONE_DB:
-                                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> Nickname: {clone_name.nickname} | Username: {clone_name.username} | Realname: {clone_name.realname} | Vhost: {clone_name.vhost} | Connected: {clone_name.connected}')
+                                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :>> Nickname: {clone_name.nickname} | Username: {clone_name.username} | Realname: {clone_name.realname} | Vhost: {clone_name.vhost} | Init: {clone_name.init} | Live: {clone_name.alive} | Connected: {clone_name.connected}')
                             except Exception as err:
                                 self.Logs.error(f'{err}')
 
