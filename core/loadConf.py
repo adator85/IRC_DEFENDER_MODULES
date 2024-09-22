@@ -84,6 +84,12 @@ class ConfigDataModel:
     PASSWORD: str
     """The password of the admin of the service"""
 
+    JSONRPC_URL: str
+    JSONRPC_PATH_TO_SOCKET_FILE: str
+    JSONRPC_METHOD: str
+    JSONRPC_USER: str
+    JSONRPC_PASSWORD: str
+
     SALON_JAIL: str
     """The JAIL channel (ex. #jail)"""
 
@@ -208,13 +214,22 @@ class Config:
             SERVICE_PREFIX=import_config["SERVICE_PREFIX"] if "SERVICE_PREFIX" in import_config else '!',
             OWNER=import_config["OWNER"] if "OWNER" in import_config else 'admin',
             PASSWORD=import_config["PASSWORD"] if "PASSWORD" in import_config else 'admin',
+
+            JSONRPC_METHOD=import_config["JSONRPC_METHOD"] if "JSONRPC_METHOD" in import_config else 'socket',
+            JSONRPC_URL=import_config["JSONRPC_URL"] if "JSONRPC_URL" in import_config else None,
+            JSONRPC_PATH_TO_SOCKET_FILE=import_config["JSONRPC_PATH_TO_SOCKET_FILE"] if "JSONRPC_PATH_TO_SOCKET_FILE" in import_config else None,
+            JSONRPC_USER=import_config["JSONRPC_USER"] if "JSONRPC_USER" in import_config else None,
+            JSONRPC_PASSWORD=import_config["JSONRPC_PASSWORD"] if "JSONRPC_PASSWORD" in import_config else None,
+
             SALON_JAIL=import_config["SALON_JAIL"] if "SALON_JAIL" in import_config else '#jail',
             SALON_JAIL_MODES=import_config["SALON_JAIL_MODES"] if "SALON_JAIL_MODES" in import_config else 'sS',
             SALON_LIBERER=import_config["SALON_LIBERER"] if "SALON_LIBERER" in import_config else '#welcome',
+
             CLONE_CHANNEL=import_config["CLONE_CHANNEL"] if "CLONE_CHANNEL" in import_config else '#clones',
             CLONE_CMODES=import_config["CLONE_CMODES"] if "CLONE_CMODES" in import_config else '+nts',
             CLONE_LOG_HOST_EXEMPT=import_config["CLONE_LOG_HOST_EXEMPT"] if "CLONE_LOG_HOST_EXEMPT" in import_config else [],
             CLONE_CHANNEL_PASSWORD=import_config["CLONE_CHANNEL_PASSWORD"] if "CLONE_CHANNEL_PASSWORD" in import_config else "clone_Password_1234",
+
             API_TIMEOUT=import_config["API_TIMEOUT"] if "API_TIMEOUT" in import_config else 2,
             PORTS_TO_SCAN=import_config["PORTS_TO_SCAN"] if "PORTS_TO_SCAN" in import_config else [],
             WHITELISTED_IP=import_config["WHITELISTED_IP"] if "WHITELISTED_IP" in import_config else ['127.0.0.1'],

@@ -157,6 +157,12 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
     "OWNER": "TON_NICK_NAME",
     "PASSWORD": "TON_PASSWORD",
 
+    "JSONRPC_URL": "https://your.domaine.com:8600/api",
+    "JSONRPC_PATH_TO_SOCKET_FILE": "/PATH/TO/YOUR/IRCD/data/rpc.socket",
+    "JSONRPC_METHOD": "socket",
+    "JSONRPC_USER": "YOUR_RPC_USER",
+    "JSONRPC_PASSWORD": "YOUR_RPC_PASSWORD",
+
     "SALON_JAIL": "#jail",
     "SALON_JAIL_MODES": "sS",
     "SALON_LIBERER": "#welcome",
