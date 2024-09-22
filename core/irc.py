@@ -786,7 +786,7 @@ class Irc:
                                 self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} : New Version available {version}")
 
                         # Initialisation terminé aprés le premier PING
-                        self.sendPrivMsg(msg=f'[{self.Config.COLORS.green}INFORMATION{self.Config.COLORS.nogc}] >> Defender is ready', channel='#devservices')
+                        self.sendPrivMsg(msg=f'[{self.Config.COLORS.green}INFORMATION{self.Config.COLORS.nogc}] >> Defender is ready', channel=self.Config.SERVICE_CHANLOG)
                         self.INIT = 0
 
                 case _:
