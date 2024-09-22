@@ -1313,9 +1313,7 @@ class Defender():
                             for chan in self.Channel.UID_CHANNEL_DB:
                                 if chan.name != jail_chan:
                                     self.Irc.send2socket(f":{service_id} MODE {chan.name} -b ~security-group:unknown-users")
-                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -e ~security-group:webirc-users")
-                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -e ~security-group:known-users")
-                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -e ~security-group:websocket-users")
+                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -eee ~security-group:webirc-users ~security-group:known-users ~security-group:websocket-users")
 
                             self.Base.db_query_channel('del', self.module_name, jail_chan)
 
