@@ -66,8 +66,8 @@ class Jsonrpc():
             username=self.Config.JSONRPC_USER,
             password=self.Config.JSONRPC_PASSWORD
         )
-        if self.Rpc.Error.code != -1:
-            self.Base.db_delete_module(module_name=self.module_name)
+        if self.Rpc.Error.code != 0:
+            self.Irc.sendPrivMsg(f"[{self.Config.COLORS.red}ERROR{self.Config.COLORS.nogc}] {self.Rpc.Error.message}", self.Config.SERVICE_CHANLOG)
 
         return None
 
@@ -118,7 +118,10 @@ class Jsonrpc():
                        callback_object_instance=self,
                        callback_method_name='callback_sent_to_irc'
                        )
-        self.UnrealIrcdRpcLive.subscribe()
+        if self.UnrealIrcdRpcLive.Error.code == 0:
+            self.UnrealIrcdRpcLive.subscribe()
+        else:
+            self.Irc.sendPrivMsg(f"[{self.Config.COLORS.red}ERROR{self.Config.COLORS.nogc}] {self.UnrealIrcdRpcLive.Error.message}", self.Config.SERVICE_CHANLOG)
 
     def __load_module_configuration(self) -> None:
         """### Load Module Configuration
@@ -203,6 +206,10 @@ class Jsonrpc():
                                 )
 
                             UserInfo = rpc.User.get(uid_to_get)
+                            if rpc.Error.code != 0:
+                                self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{rpc.Error.message}')
+                                return None
+
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :UID                  : {UserInfo.id}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :NICKNAME             : {UserInfo.name}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :USERNAME             : {UserInfo.username}')
