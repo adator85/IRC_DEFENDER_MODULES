@@ -150,7 +150,7 @@ class ConfigDataModel:
     db_path: str
     """The database path"""
 
-    COLORS: ColorModel = ColorModel()
+    COLORS: ColorModel = field(default_factory=ColorModel)
     """Available colors in Defender"""
 
     BATCH_SIZE: int = 400
