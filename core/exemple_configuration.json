@@ -1,30 +1,35 @@
 {
-    "SERVEUR_IP": "0.0.0.0",
-    "SERVEUR_HOSTNAME": "your.host.name",
-    "SERVEUR_LINK": "your.link.to.server",
+    "SERVEUR_IP": "YOUR.SERVER.IP",
+    "SERVEUR_HOSTNAME": "YOUR.SERVER.HOST",
+    "SERVEUR_LINK": "LINK.DE.TON.SERVER",
     "SERVEUR_PORT": 7002,
-    "SERVEUR_PASSWORD": "link_password",
+    "SERVEUR_PASSWORD": "YOUR_LINK_PASSWORD",
     "SERVEUR_ID": "006",
     "SERVEUR_SSL": true,
 
     "SERVICE_NAME": "defender",
-    "SERVICE_NICKNAME": "BotNickname",
-    "SERVICE_REALNAME": "BotRealname",
-    "SERVICE_USERNAME": "BotUsername",
-    "SERVICE_HOST": "your.service.hostname",
+    "SERVICE_NICKNAME": "PyDefender",
+    "SERVICE_REALNAME": "Python Defender Security",
+    "SERVICE_USERNAME": "PyDefender",
+    "SERVICE_HOST": "HOST.DE.TON.DEFENDER",
     "SERVICE_INFO": "Network IRC Service",
     "SERVICE_CHANLOG": "#services",
     "SERVICE_SMODES": "+ioqBS",
-    "SERVICE_CMODES": "ntsO",
+    "SERVICE_CMODES": "ntsOP",
     "SERVICE_UMODES": "o",
     "SERVICE_PREFIX": "!",
 
-    "OWNER": "admin",
-    "PASSWORD": "password",
+    "OWNER": "TON_NICK_NAME",
+    "PASSWORD": "TON_PASSWORD",
 
     "SALON_JAIL": "#jail",
     "SALON_JAIL_MODES": "sS",
     "SALON_LIBERER": "#welcome",
+
+    "CLONE_CHANNEL": "#clones",
+    "CLONE_CMODES": "+nts",
+    "CLONE_LOG_HOST_EXEMPT": ["HOST.TO.SKIP"],
+    "CLONE_CHANNEL_PASSWORD": "YOUR_CHANNEL_PASSWORD",
 
     "API_TIMEOUT": 2,
 
@@ -32,17 +37,6 @@
     "WHITELISTED_IP": ["127.0.0.1"],
     "GLINE_DURATION": "30",
 
-    "DEBUG_LEVEL": 20,
-
-    "CONFIG_COLOR": {
-                        "blanche": "\\u0003\\u0030",
-                        "noire": "\\u0003\\u0031",
-                        "bleue": "\\u0003\\u0020",
-                        "verte": "\\u0003\\u0033",
-                        "rouge": "\\u0003\\u0034",
-                        "jaune": "\\u0003\\u0036",
-                        "gras": "\\u0002",
-                        "nogc": "\\u0002\\u0003"
-                    }
+    "DEBUG_LEVEL": 20
 
 }

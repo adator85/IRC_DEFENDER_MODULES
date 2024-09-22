@@ -102,8 +102,6 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
     DEBUG (Debug)
         DEBUG_LEVEL: Niveau de verbosité des messages de debug (plus grand est le nombre, plus il y a d'informations). (default : 20) Pour une production
 
-    COULEURS (Couleurs)
-        CONFIG_COLOR: Dictionnaire contenant des codes de couleurs IRC pour un meilleur affichage des messages.
 ```
     Modification de la configuration
 
@@ -121,13 +119,13 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
     "SERVEUR_SSL": true,
 
     "SERVICE_NAME": "defender",
-    "SERVICE_NICKNAME": "Dev-PyDefender",
+    "SERVICE_NICKNAME": "PyDefender",
     "SERVICE_REALNAME": "Python Defender Security",
-    "SERVICE_USERNAME": "Dev-PyDefender",
+    "SERVICE_USERNAME": "PyDefender",
     "SERVICE_HOST": "HOST.DE.TON.DEFENDER",
 
     "OWNER": "TON_NICK_NAME",
-    "PASSWORD": "admin"
+    "PASSWORD": "TON_PASSWORD"
 
 }
 
@@ -145,9 +143,9 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
     "SERVEUR_SSL": true,
 
     "SERVICE_NAME": "defender",
-    "SERVICE_NICKNAME": "Dev-PyDefender",
+    "SERVICE_NICKNAME": "PyDefender",
     "SERVICE_REALNAME": "Python Defender Security",
-    "SERVICE_USERNAME": "Dev-PyDefender",
+    "SERVICE_USERNAME": "PyDefender",
     "SERVICE_HOST": "HOST.DE.TON.DEFENDER",
     "SERVICE_INFO": "Network IRC Service",
     "SERVICE_CHANLOG": "#services",
@@ -157,13 +155,16 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
     "SERVICE_PREFIX": "!",
 
     "OWNER": "TON_NICK_NAME",
-    "PASSWORD": "admin",
+    "PASSWORD": "TON_PASSWORD",
 
     "SALON_JAIL": "#jail",
     "SALON_JAIL_MODES": "sS",
     "SALON_LIBERER": "#welcome",
 
-    "SALON_CLONES": "#clones",
+    "CLONE_CHANNEL": "#clones",
+    "CLONE_CMODES": "+nts",
+    "CLONE_LOG_HOST_EXEMPT": ["HOST.TO.SKIP"],
+    "CLONE_CHANNEL_PASSWORD": "YOUR_CHANNEL_PASSWORD",
 
     "API_TIMEOUT": 2,
 
@@ -171,18 +172,7 @@ Pour Les prochains lancement de defender vous devez utiliser la commande suivant
     "WHITELISTED_IP": ["127.0.0.1"],
     "GLINE_DURATION": "30",
 
-    "DEBUG_LEVEL": 10,
-
-    "CONFIG_COLOR": {
-        "blanche": "\\u0003\\u0030",
-        "noire": "\\u0003\\u0031",
-        "bleue": "\\u0003\\u0020",
-        "verte": "\\u0003\\u0033",
-        "rouge": "\\u0003\\u0034",
-        "jaune": "\\u0003\\u0036",
-        "gras": "\\u0002",
-        "nogc": "\\u0002\\u0003"
-    }
+    "DEBUG_LEVEL": 20
 
 }
 ```

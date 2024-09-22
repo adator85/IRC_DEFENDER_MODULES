@@ -8,6 +8,17 @@ from dataclasses import dataclass, field
 ##########################################
 
 @dataclass
+class ColorModel:
+    white: str  = "\x0300"
+    black: str  = "\x0301"
+    blue: str   = "\x0302"
+    green: str  = "\x0303"
+    red: str    = "\x0304"
+    yellow: str = "\x0306"
+    bold: str   = "\x02"
+    nogc: str = "\x03"
+
+@dataclass
 class ConfigDataModel:
 
     SERVEUR_IP: str
@@ -82,8 +93,17 @@ class ConfigDataModel:
     SALON_LIBERER: str
     """Channel where the nickname will be released"""
 
-    SALON_CLONES: str
-    """Channel to host clones"""
+    CLONE_CHANNEL: str
+    """Channel where clones are hosted and will log PRIVMSG"""
+
+    CLONE_CMODES: str
+    """Clone channel modes"""
+
+    CLONE_LOG_HOST_EXEMPT: list[str]
+    """Hosts that clones will not log"""
+
+    CLONE_CHANNEL_PASSWORD: str
+    """Clone password channel"""
 
     API_TIMEOUT: int
     """Default api timeout in second"""
@@ -99,8 +119,6 @@ class ConfigDataModel:
 
     DEBUG_LEVEL:Literal[10, 20, 30, 40, 50]
     """Logs level: DEBUG 10 | INFO 20 | WARNING 30 | ERROR 40 | CRITICAL 50"""
-
-    CONFIG_COLOR: dict[str, str]
 
     table_admin: str
     """Admin table"""
@@ -132,6 +150,12 @@ class ConfigDataModel:
     db_path: str
     """The database path"""
 
+    COLORS: ColorModel = ColorModel()
+    """Available colors in Defender"""
+
+    BATCH_SIZE: int = 400
+    """The batch size used for privmsg and notice"""
+
     def __post_init__(self):
         # Initialiser SERVICE_ID après la création de l'objet
         self.SERVICE_ID:str = f"{self.SERVEUR_ID}AAAAAB"
@@ -149,34 +173,6 @@ class Config:
             conf_filename = f'core{sep}configuration.json'
             with open(conf_filename, 'r') as configuration_data:
                 configuration:dict[str, Union[str, int, list, dict]] = json.load(configuration_data)
-
-            config_dict = {"CONFIG_COLOR" : {
-                            "blanche": "\x0300",
-                            "noire": "\x0301",
-                            "bleue": "\x0302",
-                            "verte": "\x0303",
-                            "rouge": "\x0304",
-                            "jaune": "\x0306",
-                            "gras": "\x02",
-                            "nogc": "\x02\x03"
-                                }
-                            }
-
-            missing_color = False
-
-            if not "CONFIG_COLOR" in configuration:
-                missing_color = True
-                configuration_color = config_dict
-            else:
-                configuration_color = configuration["CONFIG_COLOR"]
-
-            if missing_color:
-                for key, value in configuration_color.items():
-                    configuration_color['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
-                configuration['CONFIG_COLOR'] = configuration_color['CONFIG_COLOR']
-            else:
-                for key, value in configuration['CONFIG_COLOR'].items():
-                    configuration['CONFIG_COLOR'][key] = str(value).encode('utf-8').decode('unicode_escape')
 
             return configuration
 
@@ -215,13 +211,15 @@ class Config:
             SALON_JAIL=import_config["SALON_JAIL"] if "SALON_JAIL" in import_config else '#jail',
             SALON_JAIL_MODES=import_config["SALON_JAIL_MODES"] if "SALON_JAIL_MODES" in import_config else 'sS',
             SALON_LIBERER=import_config["SALON_LIBERER"] if "SALON_LIBERER" in import_config else '#welcome',
-            SALON_CLONES=import_config["SALON_CLONES"] if "SALON_CLONES" in import_config else '#clones',
+            CLONE_CHANNEL=import_config["CLONE_CHANNEL"] if "CLONE_CHANNEL" in import_config else '#clones',
+            CLONE_CMODES=import_config["CLONE_CMODES"] if "CLONE_CMODES" in import_config else '+nts',
+            CLONE_LOG_HOST_EXEMPT=import_config["CLONE_LOG_HOST_EXEMPT"] if "CLONE_LOG_HOST_EXEMPT" in import_config else [],
+            CLONE_CHANNEL_PASSWORD=import_config["CLONE_CHANNEL_PASSWORD"] if "CLONE_CHANNEL_PASSWORD" in import_config else "clone_Password_1234",
             API_TIMEOUT=import_config["API_TIMEOUT"] if "API_TIMEOUT" in import_config else 2,
             PORTS_TO_SCAN=import_config["PORTS_TO_SCAN"] if "PORTS_TO_SCAN" in import_config else [],
             WHITELISTED_IP=import_config["WHITELISTED_IP"] if "WHITELISTED_IP" in import_config else ['127.0.0.1'],
             GLINE_DURATION=import_config["GLINE_DURATION"] if "GLINE_DURATION" in import_config else '30',
             DEBUG_LEVEL=import_config["DEBUG_LEVEL"] if "DEBUG_LEVEL" in import_config else 20,
-            CONFIG_COLOR=import_config["CONFIG_COLOR"],
             table_admin='core_admin',
             table_commande='core_command',
             table_log='core_log',
