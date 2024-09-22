@@ -64,7 +64,7 @@ class Install:
                 defender_install_folder=defender_install_folder,
                 venv_folder=venv_folder,
                 venv_cmd_installation=['python3', '-m', 'venv', venv_folder],
-                venv_cmd_requirements=['sqlalchemy','psutil','requests','faker'],
+                venv_cmd_requirements=['sqlalchemy','psutil','requests','faker','unrealircd_rpc_py'],
                 venv_pip_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}pip',
                 venv_python_executable=f'{os.path.join(defender_install_folder, venv_folder, "bin")}{os.sep}python'
             )
