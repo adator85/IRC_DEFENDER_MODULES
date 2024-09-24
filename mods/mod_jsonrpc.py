@@ -59,13 +59,20 @@ class Jsonrpc():
         self.__load_module_configuration()
         # End of mandatory methods you can start your customization #
 
-        self.UnrealIrcdRpcLive: Live = None
+        self.UnrealIrcdRpcLive: Live = Live(path_to_socket_file=self.Config.JSONRPC_PATH_TO_SOCKET_FILE,
+                       callback_object_instance=self,
+                       callback_method_name='callback_sent_to_irc'
+                       )
+
         self.Rpc: Loader = Loader(
             req_method=self.Config.JSONRPC_METHOD,
             url=self.Config.JSONRPC_URL,
             username=self.Config.JSONRPC_USER,
             password=self.Config.JSONRPC_PASSWORD
         )
+
+        self.subscribed = False
+
         if self.Rpc.Error.code != 0:
             self.Irc.sendPrivMsg(f"[{self.Config.COLORS.red}ERROR{self.Config.COLORS.nogc}] {self.Rpc.Error.message}", self.Config.SERVICE_CHANLOG)
 
@@ -114,12 +121,9 @@ class Jsonrpc():
 
     def thread_start_jsonrpc(self):
 
-        self.UnrealIrcdRpcLive = Live(path_to_socket_file=self.Config.JSONRPC_PATH_TO_SOCKET_FILE,
-                       callback_object_instance=self,
-                       callback_method_name='callback_sent_to_irc'
-                       )
         if self.UnrealIrcdRpcLive.Error.code == 0:
             self.UnrealIrcdRpcLive.subscribe()
+            self.subscribed = True
         else:
             self.Irc.sendPrivMsg(f"[{self.Config.COLORS.red}ERROR{self.Config.COLORS.nogc}] {self.UnrealIrcdRpcLive.Error.message}", self.Config.SERVICE_CHANLOG)
 
@@ -148,7 +152,8 @@ class Jsonrpc():
         self.Base.db_update_core_config(self.module_name, self.ModConfig, param_key, param_value)
 
     def unload(self) -> None:
-        self.UnrealIrcdRpcLive.unsubscribe()
+        if self.UnrealIrcdRpcLive.Error.code != -1:
+            self.UnrealIrcdRpcLive.unsubscribe()
         return None
 
     def cmd(self, data:list) -> None:
@@ -198,23 +203,22 @@ class Jsonrpc():
                             if uid_to_get is None:
                                 return None
 
-                            rpc = Loader(
-                                req_method=self.Config.JSONRPC_METHOD,
-                                url=self.Config.JSONRPC_URL,
-                                username=self.Config.JSONRPC_USER,
-                                password=self.Config.JSONRPC_PASSWORD
-                                )
+                            rpc = self.Rpc
 
                             UserInfo = rpc.User.get(uid_to_get)
                             if rpc.Error.code != 0:
                                 self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :{rpc.Error.message}')
                                 return None
 
+                            chan_list = []
+                            for chan in UserInfo.channels:
+                                chan_list.append(chan["name"])
+
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :UID                  : {UserInfo.id}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :NICKNAME             : {UserInfo.name}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :USERNAME             : {UserInfo.username}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :REALNAME             : {UserInfo.realname}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CHANNELS             : {UserInfo.channels}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CHANNELS             : {chan_list}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :SECURITY GROUP       : {UserInfo.security_groups}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :REPUTATION           : {UserInfo.reputation}')
 

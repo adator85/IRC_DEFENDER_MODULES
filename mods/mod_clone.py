@@ -147,7 +147,7 @@ class Clone():
 
             del clone_to_kill
 
-            # If LIST empty then stop this thread
+            # If no more clones then stop this thread
             if not self.Clone.UID_CLONE_DB:
                 break
 

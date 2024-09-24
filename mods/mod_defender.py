@@ -1,7 +1,12 @@
+import socket
+import json
+import time
+import re
+import psutil
+import requests
 from dataclasses import dataclass, fields, field
 from datetime import datetime
 from typing import Union
-import re, socket, psutil, requests, json, time
 from sys import exit
 from core.irc import Irc
 from core.Model import User

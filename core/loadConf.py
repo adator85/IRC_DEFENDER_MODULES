@@ -1,4 +1,5 @@
-import json, sys
+import sys
+import json
 from os import sep
 from typing import Union, Literal
 from dataclasses import dataclass, field
@@ -16,7 +17,7 @@ class ColorModel:
     red: str    = "\x0304"
     yellow: str = "\x0306"
     bold: str   = "\x02"
-    nogc: str = "\x03"
+    nogc: str   = "\x03"
 
 @dataclass
 class ConfigDataModel:
@@ -85,10 +86,19 @@ class ConfigDataModel:
     """The password of the admin of the service"""
 
     JSONRPC_URL: str
+    """The RPC url, if local https://127.0.0.1:PORT/api should be fine"""
+
     JSONRPC_PATH_TO_SOCKET_FILE: str
+    """The full path of the socket file (/PATH/TO/YOUR/UNREALIRCD/SOCKET/FILE.socket)"""
+
     JSONRPC_METHOD: str
+    """3 methods are available; requests/socket/unixsocket"""
+
     JSONRPC_USER: str
+    """The RPC User defined in your unrealircd.conf"""
+
     JSONRPC_PASSWORD: str
+    """The RPC Password defined in your unrealircd.conf"""
 
     SALON_JAIL: str
     """The JAIL channel (ex. #jail)"""
