@@ -2,10 +2,10 @@ import socket
 import ssl
 import traceback
 from ssl import SSLSocket
+from typing import Union
 from core.loadConf import Config
 from core.Model import Clones
 from core.base import Base
-from typing import Union
 
 class Connection:
 

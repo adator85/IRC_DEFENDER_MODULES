@@ -1,8 +1,21 @@
-import time, threading, os, random, socket, hashlib, ipaddress, logging, requests, json, re, ast
+import os
+import re
+import json
+import time
+import random
+import socket
+import hashlib
+import logging
+import threading
+import ipaddress
+
+import ast
+import requests
+
 from dataclasses import fields
 from typing import Union, Literal
 from base64 import b64decode, b64encode
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine, Engine, Connection, CursorResult
 from sqlalchemy.sql import text
 from core.loadConf import ConfigDataModel
@@ -106,7 +119,11 @@ class Base:
         Cette fonction retourne un UNIXTIME de type 12365456
         Return: Current time in seconds since the Epoch (int)
         """
+        cet_offset = timezone(timedelta(hours=2))
+        now_cet = datetime.now(cet_offset)
+        unixtime_cet = int(now_cet.timestamp())
         unixtime = int( time.time() )
+
         return unixtime
 
     def get_datetime(self) -> str:

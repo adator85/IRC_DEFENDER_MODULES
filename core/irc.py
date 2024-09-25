@@ -1,10 +1,17 @@
-import ssl, re, importlib, sys, time, threading, socket, traceback
+import sys
+import socket
+import threading
+import ssl
+import re
+import importlib
+import time
+import traceback
 from ssl import SSLSocket
 from datetime import datetime, timedelta
-from typing import Union, Literal
+from typing import Union
 from core.loadConf import Config
-from core.Model import User, Admin, Channel, Clones
 from core.base import Base
+from core.Model import User, Admin, Channel, Clones
 
 class Irc:
 
@@ -491,6 +498,39 @@ class Irc:
         except Exception as e:
             self.Base.logs.error(f"Something went wrong with a module you want to load : {e}")
             self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :[ {self.Config.COLORS.red}ERROR{self.Config.COLORS.black} ]: {e}")
+
+    def unload_module(self, mod_name: str) -> bool:
+        """Unload a module
+
+        Args:
+            mod_name (str): Module name ex mod_defender
+
+        Returns:
+            bool: True if success
+        """
+        try:
+            module_name = mod_name.lower()                              # Le nom du module. exemple: mod_defender
+            class_name = module_name.split('_')[1].capitalize()            # Nom de la class. exemple: Defender
+
+            if class_name in self.loaded_classes:
+                self.loaded_classes[class_name].unload()
+                for level, command in self.loaded_classes[class_name].commands_level.items():
+                    # Supprimer la commande de la variable commands
+                    for c in self.loaded_classes[class_name].commands_level[level]:
+                        self.commands.remove(c)
+                        self.commands_level[level].remove(c)
+
+                del self.loaded_classes[class_name]
+
+                # Supprimer le module de la base de données
+                self.Base.db_delete_module(module_name)
+
+                self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} supprimé")
+                return True
+
+        except Exception as err:
+            self.Base.logs.error(f"General Error: {err}")
+            return False
 
     def insert_db_admin(self, uid:str, level:int) -> None:
 
@@ -997,7 +1037,9 @@ class Irc:
                                     recieved_unixtime = int(arg[1].replace('\x01',''))
                                     current_unixtime = self.Base.get_unixtime()
                                     ping_response = current_unixtime - recieved_unixtime
-                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01PING {str(ping_response)} secs\x01')
+
+                                    self.send2socket(f'PONG :{recieved_unixtime}')
+                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01PING {recieved_unixtime} secs\x01')
                                     return False
 
                                 if not arg[0].lower() in self.commands:
@@ -1285,7 +1327,6 @@ class Irc:
 
             case 'help':
 
-                help = ''
                 count_level_definition = 0
                 get_admin = self.Admin.get_Admin(uid)
                 if not get_admin is None:
@@ -1300,18 +1341,15 @@ class Irc:
                     if int(user_level) >= int(count_level_definition):
 
                         self.send2socket(f':{dnickname} NOTICE {fromuser} : ***************** {self.Config.COLORS.nogc}[ {self.Config.COLORS.green}LEVEL {str(levDef)} {self.Config.COLORS.nogc}] *****************')
-                        count_commands = 0
-                        help = ''
-                        for comm in self.commands_level[count_level_definition]:
 
-                            help += f"{comm.upper()}"
-                            if int(count_commands) < len(self.commands_level[count_level_definition])-1:
-                                help += ' | '
-                            count_commands += 1
-
-                        self.send2socket(f':{dnickname} NOTICE {fromuser} : {help}')
+                        batch = 7
+                        for i in range(0, len(self.commands_level[count_level_definition]), batch):
+                            groupe = self.commands_level[count_level_definition][i:i + batch]  # Extraire le groupe
+                            batch_commands = ' | '.join(groupe)
+                            self.send2socket(f':{dnickname} NOTICE {fromuser} : {batch_commands}')
 
                     count_level_definition += 1
+                    self.send2socket(f':{dnickname} NOTICE {fromuser} : ')
 
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : ***************** FIN DES COMMANDES *****************')
 
@@ -1320,27 +1358,12 @@ class Irc:
                 self.load_module(fromuser, str(cmd[1]))
 
             case 'unload':
-                # unload mod_dktmb
+                # unload mod_defender
                 try:
                     module_name = str(cmd[1]).lower()                              # Le nom du module. exemple: mod_defender
-                    class_name = module_name.split('_')[1].capitalize()            # Nom de la class. exemple: Defender
-
-                    if class_name in self.loaded_classes:
-                        self.loaded_classes[class_name].unload()
-                        for level, command in self.loaded_classes[class_name].commands_level.items():
-                            # Supprimer la commande de la variable commands
-                            for c in self.loaded_classes[class_name].commands_level[level]:
-                                self.commands.remove(c)
-                                self.commands_level[level].remove(c)
-
-                        del self.loaded_classes[class_name]
-
-                        # Supprimer le module de la base de données
-                        self.Base.db_delete_module(module_name)
-
-                        self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} supprimé")
-                except:
-                    self.Base.logs.error(f"Something went wrong with a module you want to load")
+                    self.unload_module(module_name)
+                except Exception as err:
+                    self.Base.logs.error(f"General Error: {err}")
 
             case 'reload':
                 # reload mod_dktmb

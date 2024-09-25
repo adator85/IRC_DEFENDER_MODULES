@@ -1,8 +1,8 @@
+import os
+from sys import exit
 from dataclasses import dataclass
 from subprocess import check_call, run, CalledProcessError, PIPE
 from platform import python_version, python_version_tuple
-from sys import exit
-import os
 
 class Install:
 

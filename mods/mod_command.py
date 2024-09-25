@@ -35,9 +35,14 @@ class Command():
         # Create module commands (Mandatory)
         self.commands_level = {
             1: ['join', 'part'],
-            2: ['owner', 'deowner', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 
+            2: ['owner', 'deowner', 'protect', 'deprotect', 'op', 'deop', 'halfop', 'dehalfop', 'voice', 
                 'devoice', 'opall', 'deopall', 'devoiceall', 'voiceall', 'ban', 
-                'unban','kick', 'kickban', 'umode', 'svsjoin', 'svspart', 'svsnick']
+                'unban','kick', 'kickban', 'umode', 'mode', 'svsjoin', 'svspart', 'svsnick', 'topic',
+                'wallops', 'globops','gnotice','whois', 'names', 'invite', 'inviteme',
+                'sajoin', 'sapart', 
+                'kill', 'gline', 'ungline', 'kline', 'unkline', 'shun', 'unshun', 
+                'glinelist', 'shunlist', 'klinelist'],
+            3: ['map']
         }
 
         # Init the module
@@ -57,6 +62,9 @@ class Command():
         # Load module configuration and sync with core one (Mandatory)
         self.__load_module_configuration()
         # End of mandatory methods you can start your customization #
+
+        self.user_to_notice: str = ''
+        self.show_219: bool = True
 
         return None
 
@@ -91,7 +99,7 @@ class Command():
             )
         '''
 
-        self.Base.db_execute_query(table_logs)
+        # self.Base.db_execute_query(table_logs)
         return None
 
     def __load_module_configuration(self) -> None:
@@ -122,44 +130,79 @@ class Command():
 
         return None
 
-    def add_defender_channel(self, channel:str) -> bool:
-        """Cette fonction ajoute les salons de join de Defender
-
-        Args:
-            channel (str): le salon à enregistrer.
-        """
-        mes_donnees = {'channel': channel}
-        response = self.Base.db_execute_query("SELECT id FROM def_channels WHERE channel = :channel", mes_donnees)
-        
-        isChannelExist = response.fetchone()
-
-        if isChannelExist is None:
-            mes_donnees = {'datetime': self.Base.get_datetime(), 'channel': channel}
-            insert = self.Base.db_execute_query(f"INSERT INTO def_channels (datetime, channel) VALUES (:datetime, :channel)", mes_donnees)
-            if insert.rowcount >=0:
-                return True
-            else:
-                return False
-        else:
-            return False
-
-    def delete_defender_channel(self, channel:str) -> bool:
-        """Cette fonction supprime les salons de join de Defender
-
-        Args:
-            channel (str): le salon à enregistrer.
-        """
-        mes_donnes = {'channel': channel}
-        response = self.Base.db_execute_query("DELETE FROM def_channels WHERE channel = :channel", mes_donnes)
-        
-        affected_row = response.rowcount
-
-        if affected_row > 0:
-            return True
-        else:
-            return False
-
     def cmd(self, data:list) -> None:
+
+        service_id = self.Config.SERVICE_ID
+        dnickname = self.Config.SERVICE_NICKNAME
+        dchanlog = self.Config.SERVICE_CHANLOG
+        red = self.Config.COLORS.red
+        green = self.Config.COLORS.green
+        bold = self.Config.COLORS.bold
+        nogc = self.Config.COLORS.nogc
+        cmd = list(data).copy()
+
+        if len(cmd) < 2:
+            return None
+
+        match cmd[1]:
+            # [':irc.deb.biz.st', '403', 'Dev-PyDefender', '#Z', ':No', 'such', 'channel']
+            case '403' | '401':
+                try:
+                    message = ' '.join(cmd[3:])
+                    self.Irc.send2socket(f":{dnickname} NOTICE {self.user_to_notice} :[{red}ERROR MSG{nogc}] {message}")
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case '006' | '018':
+                try:
+                    # [':irc.deb.biz.st', '006', 'Dev-PyDefender', ':`-services.deb.biz.st', '------', '|', 'Users:', '9', '(47.37%)', '[00B]']
+                    # [':irc.deb.biz.st', '018', 'Dev-PyDefender', ':4', 'servers', 'and', '19', 'users,', 'average', '4.75', 'users', 'per', 'server']
+                    message = ' '.join(cmd[3:])
+                    self.Irc.send2socket(f":{dnickname} NOTICE {self.user_to_notice} : [{green}SERVER MSG{nogc}] {message}")
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case '219':
+                try:
+                    # [':irc.deb.biz.st', '219', 'Dev-PyDefender', 's', ':End', 'of', '/STATS', 'report']
+                    if not self.show_219:
+                        # If there is a result in 223 then stop here
+                        self.show_219 = True
+                        return None
+
+                    type_of_stats = str(cmd[3])
+
+                    match type_of_stats:
+                        case 's':
+                            self.Irc.send2socket(f":{dnickname} NOTICE {self.user_to_notice} : No shun")
+                        case 'G':
+                            self.Irc.send2socket(f":{dnickname} NOTICE {self.user_to_notice} : No gline")
+                        case 'k':
+                            self.Irc.send2socket(f":{dnickname} NOTICE {self.user_to_notice} : No kline")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case '223':
+                try:
+                    # [':irc.deb.biz.st', '223', 'Dev-PyDefender', 'G', '*@162.142.125.217', '67624', '18776', 'irc.deb.biz.st', ':Proxy/Drone', 'detected.', 'Check', 'https://dronebl.org/lookup?ip=162.142.125.217', 'for', 'details.']
+                    self.show_219 = False
+                    host = str(cmd[4])
+                    author = str(cmd[7])
+                    reason = ' '.join(cmd[8:])
+
+                    self.Irc.send2socket(f":{dnickname} NOTICE {self.user_to_notice} : {bold}Author{nogc}: {author} - {bold}Host{nogc}: {host} - {bold}Reason{nogc}: {reason}")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
 
         return None
 
@@ -346,6 +389,60 @@ class Command():
                 except Exception as err:
                     self.Logs.warning(f'Unknown Error: {str(err)}')
 
+            case 'protect':
+                # /mode #channel +a user
+                # .protect #channel user
+                try:
+                    if fromchannel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {fromchannel} +a {fromuser}")
+                        return True
+
+                    # deowner nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {fromchannel} +a {nickname}")
+                        return True
+
+                    nickname = cmd[2]
+                    self.Irc.send2socket(f":{service_id} MODE {fromchannel} +a {nickname}")
+
+                except IndexError as e:
+                    self.Logs.warning(f'_hcmd DEOWNER: {str(e)}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'deprotect':
+                # /mode #channel -a user
+                # .deprotect #channel user
+                try:
+                    if fromchannel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#SALON] [NICKNAME]')
+                        return False
+
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{service_id} MODE {fromchannel} -a {fromuser}")
+                        return True
+
+                    # deowner nickname
+                    if len(cmd) == 2:
+                        nickname = cmd[1]
+                        self.Irc.send2socket(f":{service_id} MODE {fromchannel} -a {nickname}")
+                        return True
+
+                    nickname = cmd[2]
+                    self.Irc.send2socket(f":{service_id} MODE {fromchannel} -a {nickname}")
+
+                except IndexError as e:
+                    self.Logs.warning(f'_hcmd DEOWNER: {str(e)}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#SALON] [NICKNAME]')
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
             case 'halfop':
                 # /mode #channel +h user
                 # .halfop #channel user
@@ -459,7 +556,7 @@ class Command():
                 try:
                     sentchannel = str(cmd[1]) if self.Base.Is_Channel(cmd[1]) else None
                     if sentchannel is None:
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} ban [#SALON] [NICKNAME]')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#SALON] [NICKNAME]')
                         return False
 
                     nickname = cmd[2]
@@ -468,7 +565,7 @@ class Command():
                     self.Logs.debug(f'{fromuser} has banned {nickname} from {sentchannel}')
                 except IndexError as e:
                     self.Logs.warning(f'_hcmd BAN: {str(e)}')
-                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} ban [#SALON] [NICKNAME]')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#SALON] [NICKNAME]')
                 except Exception as err:
                     self.Logs.warning(f'Unknown Error: {str(err)}')
 
@@ -577,6 +674,174 @@ class Command():
                 except Exception as err:
                     self.Logs.warning(f'Unknown Error: {str(err)}')
 
+            case 'topic':
+                try:
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} TOPIC #channel THE_TOPIC_MESSAGE")
+                        return None
+
+                    chan = str(cmd[1])
+                    if not self.Base.Is_Channel(chan):
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The channel must start with #")
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} TOPIC #channel THE_TOPIC_MESSAGE")
+                        return None
+
+                    topic_msg = ' '.join(cmd[2:]).strip()
+
+                    if topic_msg:
+                        self.Irc.send2socket(f':{dnickname} TOPIC {chan} :{topic_msg}')
+                    else:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :You need to specify the topic")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'wallops':
+                try:
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} WALLOPS THE_WALLOPS_MESSAGE")
+                        return None
+
+                    wallops_msg = ' '.join(cmd[1:]).strip()
+
+                    if wallops_msg:
+                        self.Irc.send2socket(f':{dnickname} WALLOPS {wallops_msg} ({dnickname})')
+                    else:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :You need to specify the wallops message")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'globops':
+                try:
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} GLOBOPS THE_GLOBOPS_MESSAGE")
+                        return None
+
+                    globops_msg = ' '.join(cmd[1:]).strip()
+
+                    if globops_msg:
+                        self.Irc.send2socket(f':{dnickname} GLOBOPS {globops_msg} ({dnickname})')
+                    else:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :You need to specify the globops message")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'gnotice':
+                try:
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()} THE_GLOBAL_NOTICE_MESSAGE")
+                        return None
+
+                    gnotice_msg = ' '.join(cmd[1:]).strip()
+
+                    if gnotice_msg:
+                        self.Irc.send2socket(f':{dnickname} NOTICE $*.* :[{self.Config.COLORS.red}GLOBAL NOTICE{self.Config.COLORS.nogc}] {gnotice_msg}')
+                    else:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :You need to specify the global notice message")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'whois':
+                try:
+                    self.user_to_notice = fromuser
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()} NICKNAME")
+                        return None
+
+                    nickname = str(cmd[1])
+
+                    if self.User.get_nickname(nickname) is None:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :Nickname not found !")
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()} NICKNAME")
+                        return None
+
+                    self.Irc.send2socket(f':{dnickname} WHOIS {nickname}')
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'names':
+                try:
+                    if len(cmd) == 1:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()} #CHANNEL")
+                        return None
+
+                    chan = str(cmd[1])
+
+                    if not self.Base.Is_Channel(chan):
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The channel must start with #")
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()} #channel")
+                        return None
+
+                    self.Irc.send2socket(f':{dnickname} NAMES {chan}')
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'invite':
+                try:
+                    if len(cmd) < 3:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()} #CHANNEL NICKNAME")
+                        return None
+
+                    chan = str(cmd[1])
+                    nickname = str(cmd[2])
+
+                    if not self.Base.Is_Channel(chan):
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :The channel must start with #")
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()} #channel nickname")
+                        return None
+
+                    if self.User.get_nickname(nickname) is None:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :Nickname not found !")
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()} #channel NICKNAME")
+                        return None
+
+                    self.Irc.send2socket(f':{dnickname} INVITE {nickname} {chan}')
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'inviteme':
+                try:
+                    if len(cmd) == 0:
+                        self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} :/msg {dnickname} {str(cmd[0]).upper()}")
+                        return None
+
+                    self.Irc.send2socket(f':{dnickname} INVITE {fromuser} {self.Config.SERVICE_CHANLOG}')
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'map':
+                try:
+                    self.user_to_notice = fromuser
+                    self.Irc.send2socket(f':{dnickname} MAP')
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
             case 'umode':
                 try:
                     # .umode nickname +mode
@@ -586,6 +851,39 @@ class Command():
                     self.Irc.send2socket(f':{dnickname} SVSMODE {nickname} {umode}')
                 except KeyError as ke:
                     self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'mode':
+                # .mode #channel +/-mode
+                # .mode +/-mode
+                try:
+
+                    if len(cmd) < 2:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#CHANNEL] [+/-]mode')
+                        return None
+
+                    if fromchannel is None:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#CHANNEL] [+/-]mode')
+                        return None
+
+                    if len(cmd) == 2:
+                        channel_mode = cmd[1]
+                        if self.Base.Is_Channel(fromchannel):
+                            self.Irc.send2socket(f":{dnickname} MODE {fromchannel} {channel_mode}")
+                        else:
+                            self.Irc.send2socket(f":{dnickname} NOTICE {fromuser} : Right command : Channel [{fromchannel}] is not correct should start with #")
+                        return None
+
+                    if len(cmd) == 3:
+                        provided_channel = cmd[1]
+                        channel_mode = cmd[2]
+                        self.Irc.send2socket(f":{service_id} MODE {provided_channel} {channel_mode}")
+                        return None
+
+                except IndexError as e:
+                    self.Logs.warning(f'_hcmd OP: {str(e)}')
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : Right command : /msg {dnickname} {command.upper()} [#CHANNEL] [+/-]mode')
                 except Exception as err:
                     self.Logs.warning(f'Unknown Error: {str(err)}')
 
@@ -621,6 +919,38 @@ class Command():
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSPART nickname #channel')
                     self.Logs.warning(f'Unknown Error: {str(err)}')
 
+            case 'sajoin':
+                try:
+                    # .sajoin nickname #channel
+                    nickname = str(cmd[1])
+                    channel = str(cmd[2])
+                    if len(cmd) < 3:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname #channel')
+                        return None
+
+                    self.Irc.send2socket(f':{self.Config.SERVEUR_ID} SAJOIN {nickname} {channel}')
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname #channel')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'sapart':
+                try:
+                    # .sapart nickname #channel
+                    nickname = str(cmd[1])
+                    channel = str(cmd[2])
+                    if len(cmd) < 3:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname #channel')
+                        return None
+
+                    self.Irc.send2socket(f':{self.Config.SERVEUR_ID} SAPART {nickname} {channel}')
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname #channel')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
             case 'svsnick':
                 try:
                     # .svsnick nickname newnickname
@@ -633,12 +963,203 @@ class Command():
                         return None
 
                     if len(cmd) != 3:
-                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSNICK nickname newnickname')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname newnickname')
                         return None
 
                     self.Irc.send2socket(f':{self.Config.SERVEUR_ID} SVSNICK {nickname} {newnickname} {unixtime}')
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname newnickname')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'kill':
+                try:
+                    # 'kill', 'gline', 'ungline', 'shun', 'unshun'
+                    # .kill nickname reason
+                    if len(cmd) < 3:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname reason')
+                        return None
+
+                    nickname = str(cmd[1])
+                    kill_reason = ' '.join(cmd[2:])
+
+                    self.Irc.send2socket(f":{service_id} KILL {nickname} {kill_reason} ({self.Config.COLORS.red}{dnickname}{self.Config.COLORS.nogc})")
                 except KeyError as ke:
                     self.Base.logs.error(ke)
                 except Exception as err:
                     self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} SVSNICK nickname newnickname')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'gline':
+                try:
+                    # TKL + G user host set_by expire_timestamp set_at_timestamp :reason
+                    # .gline [nickname] [host] [reason]
+                    if len(cmd) < 4:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                        return None
+
+                    nickname = str(cmd[1])
+                    hostname = str(cmd[2])
+                    set_at_timestamp = self.Base.get_unixtime()
+                    expire_time = (60 * 60 * 24) + set_at_timestamp
+                    gline_reason = ' '.join(cmd[3:])
+
+                    if nickname == '*' and hostname == '*':
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : You want to close the server ? i would recommand ./unrealircd stop :)')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                        return None
+
+                    self.Irc.send2socket(f":{self.Config.SERVEUR_ID} TKL + G {nickname} {hostname} {dnickname} {expire_time} {set_at_timestamp} :{gline_reason}")
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'ungline':
+                try:
+                    # 'shun', 'unshun'
+                    # TKL + G user host set_by expire_timestamp set_at_timestamp :reason
+                    # .ungline nickname host
+                    if len(cmd) < 2:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname hostname')
+                        return None
+
+                    nickname = str(cmd[1])
+                    hostname = str(cmd[2])
+
+                    self.Irc.send2socket(f":{self.Config.SERVEUR_ID} TKL - G {nickname} {hostname} {dnickname}")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname hostname')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'kline':
+                try:
+                    # TKL + k user host set_by expire_timestamp set_at_timestamp :reason
+                    # .gline [nickname] [host] [reason]
+                    if len(cmd) < 4:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                        return None
+
+                    nickname = str(cmd[1])
+                    hostname = str(cmd[2])
+                    set_at_timestamp = self.Base.get_unixtime()
+                    expire_time = (60 * 60 * 24) + set_at_timestamp
+                    gline_reason = ' '.join(cmd[3:])
+
+                    if nickname == '*' and hostname == '*':
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : You want to close the server ? i would recommand ./unrealircd stop :)')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                        return None
+
+                    self.Irc.send2socket(f":{self.Config.SERVEUR_ID} TKL + k {nickname} {hostname} {dnickname} {expire_time} {set_at_timestamp} :{gline_reason}")
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'unkline':
+                try:
+                    # 'shun', 'unshun'
+                    # TKL + G user host set_by expire_timestamp set_at_timestamp :reason
+                    # .ungline nickname host
+                    if len(cmd) < 2:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname hostname')
+                        return None
+
+                    nickname = str(cmd[1])
+                    hostname = str(cmd[2])
+
+                    self.Irc.send2socket(f":{self.Config.SERVEUR_ID} TKL - k {nickname} {hostname} {dnickname}")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname hostname')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'shun':
+                try:
+                    # TKL + G user host set_by expire_timestamp set_at_timestamp :reason
+                    # .shun [nickname] [host] [reason]
+
+                    if len(cmd) < 4:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                        return None
+
+                    nickname = str(cmd[1])
+                    hostname = str(cmd[2])
+                    set_at_timestamp = self.Base.get_unixtime()
+                    expire_time = (60 * 60 * 24) + set_at_timestamp
+                    shun_reason = ' '.join(cmd[3:])
+
+                    if nickname == '*' and hostname == '*':
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : You want to close the server ? i would recommand ./unrealircd stop :)')
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                        return None
+
+                    self.Irc.send2socket(f":{self.Config.SERVEUR_ID} TKL + s {nickname} {hostname} {dnickname} {expire_time} {set_at_timestamp} :{shun_reason}")
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname host reason')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'unshun':
+                try:
+                    # 'shun', 'unshun'
+                    # TKL + G user host set_by expire_timestamp set_at_timestamp :reason
+                    # .unshun nickname host
+                    if len(cmd) < 2:
+                        self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname hostname')
+                        return None
+
+                    nickname = str(cmd[1])
+                    hostname = str(cmd[2])
+
+                    self.Irc.send2socket(f":{self.Config.SERVEUR_ID} TKL - s {nickname} {hostname} {dnickname}")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()} nickname hostname')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'glinelist':
+                try:
+                    self.user_to_notice = fromuser
+                    self.Irc.send2socket(f":{self.Config.SERVICE_ID} STATS G")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()}')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'shunlist':
+                try:
+                    self.user_to_notice = fromuser
+                    self.Irc.send2socket(f":{self.Config.SERVICE_ID} STATS s")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()}')
+                    self.Logs.warning(f'Unknown Error: {str(err)}')
+
+            case 'klinelist':
+                try:
+                    self.user_to_notice = fromuser
+                    self.Irc.send2socket(f":{self.Config.SERVICE_ID} STATS k")
+
+                except KeyError as ke:
+                    self.Base.logs.error(ke)
+                except Exception as err:
+                    self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} : /msg {dnickname} {command.upper()}')
                     self.Logs.warning(f'Unknown Error: {str(err)}')
