@@ -76,6 +76,9 @@ class Jsonrpc():
         if self.Rpc.Error.code != 0:
             self.Irc.sendPrivMsg(f"[{self.Config.COLORS.red}ERROR{self.Config.COLORS.nogc}] {self.Rpc.Error.message}", self.Config.SERVICE_CHANLOG)
 
+        if self.UnrealIrcdRpcLive.Error.code != 0:
+            self.Irc.sendPrivMsg(f"[{self.Config.COLORS.red}ERROR{self.Config.COLORS.nogc}] {self.UnrealIrcdRpcLive.Error.message}", self.Config.SERVICE_CHANLOG)
+
         return None
 
     def __set_commands(self, commands:dict[int, list[str]]) -> None:
@@ -116,13 +119,29 @@ class Jsonrpc():
 
         dnickname = self.Config.SERVICE_NICKNAME
         dchanlog = self.Config.SERVICE_CHANLOG
+        green = self.Config.COLORS.green
+        nogc = self.Config.COLORS.nogc
+        bold = self.Config.COLORS.bold
+        red = self.Config.COLORS.red
 
-        self.Irc.sendPrivMsg(msg=json_response, channel=dchanlog)
+        if json_response.result == True:
+            self.Irc.sendPrivMsg(msg=f"[{bold}{green}JSONRPC{nogc}{bold}] Event activated", channel=dchanlog)
+            return None
+
+        level = json_response.result.level
+        subsystem = json_response.result.subsystem
+        event_id = json_response.result.event_id
+        log_source = json_response.result.log_source
+        msg = json_response.result.msg
+
+        build_msg = f"{green}{log_source}{nogc}: [{bold}{level}{bold}] {subsystem}.{event_id} - {msg}"
+
+        self.Irc.sendPrivMsg(msg=build_msg, channel=dchanlog)
 
     def thread_start_jsonrpc(self):
 
         if self.UnrealIrcdRpcLive.Error.code == 0:
-            self.UnrealIrcdRpcLive.subscribe()
+            self.UnrealIrcdRpcLive.subscribe(["all"])
             self.subscribed = True
         else:
             self.Irc.sendPrivMsg(f"[{self.Config.COLORS.red}ERROR{self.Config.COLORS.nogc}] {self.UnrealIrcdRpcLive.Error.message}", self.Config.SERVICE_CHANLOG)
