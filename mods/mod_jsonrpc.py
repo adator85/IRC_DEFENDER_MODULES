@@ -211,24 +211,25 @@ class Jsonrpc():
                                 return None
 
                             chan_list = []
-                            for chan in UserInfo.channels:
-                                chan_list.append(chan["name"])
+                            for chan in UserInfo.user.channels:
+                                chan_list.append(chan.name)
 
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :UID                  : {UserInfo.id}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :NICKNAME             : {UserInfo.name}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :USERNAME             : {UserInfo.username}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :REALNAME             : {UserInfo.realname}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :USERNAME             : {UserInfo.user.username}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :REALNAME             : {UserInfo.user.realname}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :MODES                : {UserInfo.user.modes}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CHANNELS             : {chan_list}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :SECURITY GROUP       : {UserInfo.security_groups}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :REPUTATION           : {UserInfo.reputation}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :SECURITY GROUP       : {UserInfo.user.security_groups}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :REPUTATION           : {UserInfo.user.reputation}')
 
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :IP                   : {UserInfo.ip}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :COUNTRY CODE         : {UserInfo.country_code}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :ASN                  : {UserInfo.asn}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :ASNAME               : {UserInfo.asname}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CLOAKED HOST         : {UserInfo.cloakedhost}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :COUNTRY CODE         : {UserInfo.geoip.country_code}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :ASN                  : {UserInfo.geoip.asn}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :ASNAME               : {UserInfo.geoip.asname}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CLOAKED HOST         : {UserInfo.user.cloakedhost}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :HOSTNAME             : {UserInfo.hostname}')
-                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :VHOST                : {UserInfo.vhost}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :VHOST                : {UserInfo.user.vhost}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CLIENT PORT          : {UserInfo.client_port}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :SERVER PORT          : {UserInfo.server_port}')
 
@@ -237,7 +238,7 @@ class Jsonrpc():
 
                 except IndexError as ie:
                     self.Logs.error(ie)
-            
+
             case 'ia':
                 try:
 
