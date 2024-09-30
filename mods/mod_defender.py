@@ -111,9 +111,6 @@ class Defender():
         self.__load_module_configuration()
         # End of mandatory methods you can start your customization #
 
-        # # Rejoindre les salons
-        # self.join_saved_channels()
-
         self.timeout = self.Config.API_TIMEOUT
 
         # Listes qui vont contenir les ip a scanner avec les différentes API
@@ -150,7 +147,7 @@ class Defender():
         self.Base.create_thread(func=self.thread_reputation_timer)
 
         if self.ModConfig.reputation == 1:
-            self.Irc.send2socket(f":{self.Config.SERVICE_ID} SAMODE {self.Config.SALON_JAIL} +{self.Config.SERVICE_UMODES} {self.Config.SERVICE_NICKNAME}")
+            self.Irc.send2socket(f":{self.Config.SERVEUR_ID} SJOIN {self.Base.get_unixtime()} {self.Config.SALON_JAIL} + :{self.Config.SERVICE_ID}")
 
         return None
 
@@ -249,40 +246,6 @@ class Defender():
         self.reputationTimer_isRunning:bool = False
         return None
 
-    def add_defender_channel(self, channel:str) -> bool:
-        """Cette fonction ajoute les salons de join de Defender
-
-        Args:
-            channel (str): le salon à enregistrer.
-        """
-        mes_donnees = {'channel': channel}
-        response = self.Base.db_execute_query("SELECT id FROM def_channels WHERE channel = :channel", mes_donnees)
-        
-        isChannelExist = response.fetchone()
-
-        if isChannelExist is None:
-            mes_donnees = {'datetime': self.Base.get_datetime(), 'channel': channel}
-            insert = self.Base.db_execute_query(f"INSERT INTO def_channels (datetime, channel) VALUES (:datetime, :channel)", mes_donnees)
-            return True
-        else:
-            return False
-
-    def delete_defender_channel(self, channel:str) -> bool:
-        """Cette fonction supprime les salons de join de Defender
-
-        Args:
-            channel (str): le salon à enregistrer.
-        """
-        mes_donnes = {'channel': channel}
-        response = self.Base.db_execute_query("DELETE FROM def_channels WHERE channel = :channel", mes_donnes)
-        
-        affected_row = response.rowcount
-
-        if affected_row > 0:
-            return True
-        else:
-            return False
-
     def reputation_insert(self, reputationModel: ReputationModel) -> bool:
 
         response = False
@@ -372,7 +335,7 @@ class Defender():
 
     def join_saved_channels(self) -> None:
 
-        result = self.Base.db_execute_query("SELECT id, channel FROM def_channels")
+        result = self.Base.db_execute_query(f"SELECT distinct channel_name FROM {self.Config.table_channel}")
         channels = result.fetchall()
         jail_chan = self.Config.SALON_JAIL
         jail_chan_mode = self.Config.SALON_JAIL_MODES
@@ -383,7 +346,7 @@ class Defender():
         unixtime = self.Base.get_unixtime()
 
         for channel in channels:
-            id, chan = channel
+            chan = channel[0]
             self.Irc.send2socket(f":{self.Config.SERVEUR_ID} SJOIN {unixtime} {chan} + :{self.Config.SERVICE_ID}")
             if chan == jail_chan:
                 self.Irc.send2socket(f":{service_id} SAMODE {jail_chan} +{dumodes} {dnickname}")
@@ -1004,14 +967,7 @@ class Defender():
         service_id = self.Config.SERVICE_ID                 # Defender serveur id
         cmd = list(data).copy()
 
-        if len(cmd) < 2:
-            return None
-
         match cmd[1]:
-
-            case 'EOS':
-                if self.Irc.INIT == 0:
-                    self.Irc.send2socket(f":{service_id} SAMODE {self.Config.SALON_JAIL} +{self.Config.SERVICE_UMODES} {self.Config.SERVICE_NICKNAME}")
 
             case 'REPUTATION':
                 # :001 REPUTATION 91.168.141.239 118
@@ -1096,8 +1052,9 @@ class Defender():
 
                         get_reputation = self.reputation_get_Reputation(parsed_UID)
 
-                        self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b ~security-group:unknown-users")
-                        self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +eee ~security-group:webirc-users ~security-group:known-users ~security-group:websocket-users")
+                        if parsed_chan != self.Config.SALON_JAIL:
+                            self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b ~security-group:unknown-users")
+                            self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +eee ~security-group:webirc-users ~security-group:known-users ~security-group:websocket-users")
 
                         if not get_reputation is None:
                             isWebirc = get_reputation.isWebirc
