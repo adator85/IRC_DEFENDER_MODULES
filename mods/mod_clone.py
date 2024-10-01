@@ -60,6 +60,7 @@ class Clone():
 
         self.Base.db_query_channel(action='add', module_name=self.module_name, channel_name=self.Config.CLONE_CHANNEL)
         self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} JOIN {self.Config.CLONE_CHANNEL}")
+        self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} SAMODE {self.Config.CLONE_CHANNEL} +o {self.Config.SERVICE_NICKNAME}")
         self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.CLONE_CHANNEL} +nts")
         self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.CLONE_CHANNEL} +k {self.Config.CLONE_CHANNEL_PASSWORD}")
 
@@ -126,6 +127,8 @@ class Clone():
             self.Irc.send2socket(f':{self.Config.SERVICE_NICKNAME} PRIVMSG {clone} :KILL')
 
         self.Base.db_query_channel(action='del', module_name=self.module_name, channel_name=self.Config.CLONE_CHANNEL)
+        self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.CLONE_CHANNEL} -nts")
+        self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} MODE {self.Config.CLONE_CHANNEL} -k {self.Config.CLONE_CHANNEL_PASSWORD}")
         self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} PART {self.Config.CLONE_CHANNEL}")
         return None
 

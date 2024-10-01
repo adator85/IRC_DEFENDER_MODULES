@@ -821,13 +821,20 @@ class Irc:
                             self.Base.logs.info(f"# CHANNEL  :    {self.Config.SERVICE_CHANLOG}   ")
                             self.Base.logs.info(f"# VERSION  :    {version}                       ")
                             self.Base.logs.info(f"################################################")
-                            
+
                             if self.Base.check_for_new_version(False):
                                 self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} : New Version available {version}")
 
                         # Initialisation terminé aprés le premier PING
                         self.sendPrivMsg(msg=f'[{self.Config.COLORS.green}INFORMATION{self.Config.COLORS.nogc}] >> Defender is ready', channel=self.Config.SERVICE_CHANLOG)
                         self.INIT = 0
+
+                        # Send EOF to other modules
+                        for classe_name, classe_object in self.loaded_classes.items():
+                            classe_object.cmd(original_response)
+
+                        # Stop here When EOS
+                        return None
 
                 case _:
                     pass
@@ -1003,7 +1010,8 @@ class Irc:
                             arg.remove(f':{self.Config.SERVICE_PREFIX}')
                             if not arg[0].lower() in self.commands:
                                 self.Base.logs.debug(f"This command {arg[0]} is not available")
-                                return False
+                                self.sendNotice(f"This command [{self.Config.COLORS.bold}{arg[0]}{self.Config.COLORS.bold}] is not available", user_trigger)
+                                return None
 
                             cmd_to_send = convert_to_string.replace(':','')
                             self.Base.log_cmd(user_trigger, cmd_to_send)
@@ -1348,8 +1356,9 @@ class Irc:
                             batch_commands = ' | '.join(groupe)
                             self.send2socket(f':{dnickname} NOTICE {fromuser} : {batch_commands}')
 
+                        self.send2socket(f':{dnickname} NOTICE {fromuser} : ')
+
                     count_level_definition += 1
-                    self.send2socket(f':{dnickname} NOTICE {fromuser} : ')
 
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : ***************** FIN DES COMMANDES *****************')
 

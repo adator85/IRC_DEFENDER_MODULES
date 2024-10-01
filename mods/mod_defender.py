@@ -111,9 +111,6 @@ class Defender():
         self.__load_module_configuration()
         # End of mandatory methods you can start your customization #
 
-        # # Rejoindre les salons
-        # self.join_saved_channels()
-
         self.timeout = self.Config.API_TIMEOUT
 
         # Listes qui vont contenir les ip a scanner avec les différentes API
@@ -150,7 +147,8 @@ class Defender():
         self.Base.create_thread(func=self.thread_reputation_timer)
 
         if self.ModConfig.reputation == 1:
-            self.Irc.send2socket(f":{self.Config.SERVICE_ID} SAMODE {self.Config.SALON_JAIL} +{self.Config.SERVICE_UMODES} {self.Config.SERVICE_NICKNAME}")
+            self.Irc.send2socket(f":{self.Config.SERVEUR_ID} SJOIN {self.Base.get_unixtime()} {self.Config.SALON_JAIL} + :{self.Config.SERVICE_NICKNAME}")
+            self.Irc.send2socket(f":{self.Config.SERVICE_NICKNAME} SAMODE {self.Config.SALON_JAIL} +o {self.Config.SERVICE_NICKNAME}")
 
         return None
 
@@ -249,40 +247,6 @@ class Defender():
         self.reputationTimer_isRunning:bool = False
         return None
 
-    def add_defender_channel(self, channel:str) -> bool:
-        """Cette fonction ajoute les salons de join de Defender
-
-        Args:
-            channel (str): le salon à enregistrer.
-        """
-        mes_donnees = {'channel': channel}
-        response = self.Base.db_execute_query("SELECT id FROM def_channels WHERE channel = :channel", mes_donnees)
-        
-        isChannelExist = response.fetchone()
-
-        if isChannelExist is None:
-            mes_donnees = {'datetime': self.Base.get_datetime(), 'channel': channel}
-            insert = self.Base.db_execute_query(f"INSERT INTO def_channels (datetime, channel) VALUES (:datetime, :channel)", mes_donnees)
-            return True
-        else:
-            return False
-
-    def delete_defender_channel(self, channel:str) -> bool:
-        """Cette fonction supprime les salons de join de Defender
-
-        Args:
-            channel (str): le salon à enregistrer.
-        """
-        mes_donnes = {'channel': channel}
-        response = self.Base.db_execute_query("DELETE FROM def_channels WHERE channel = :channel", mes_donnes)
-        
-        affected_row = response.rowcount
-
-        if affected_row > 0:
-            return True
-        else:
-            return False
-
     def reputation_insert(self, reputationModel: ReputationModel) -> bool:
 
         response = False
@@ -372,7 +336,7 @@ class Defender():
 
     def join_saved_channels(self) -> None:
 
-        result = self.Base.db_execute_query("SELECT id, channel FROM def_channels")
+        result = self.Base.db_execute_query(f"SELECT distinct channel_name FROM {self.Config.table_channel}")
         channels = result.fetchall()
         jail_chan = self.Config.SALON_JAIL
         jail_chan_mode = self.Config.SALON_JAIL_MODES
@@ -383,7 +347,7 @@ class Defender():
         unixtime = self.Base.get_unixtime()
 
         for channel in channels:
-            id, chan = channel
+            chan = channel[0]
             self.Irc.send2socket(f":{self.Config.SERVEUR_ID} SJOIN {unixtime} {chan} + :{self.Config.SERVICE_ID}")
             if chan == jail_chan:
                 self.Irc.send2socket(f":{service_id} SAMODE {jail_chan} +{dumodes} {dnickname}")
@@ -1000,190 +964,206 @@ class Defender():
             self.Logs.error(f"Thread_cloudfilt_scan Error : {ve}")
 
     def cmd(self, data: list) -> None:
+        try:
+            service_id = self.Config.SERVICE_ID                 # Defender serveur id
+            cmd = list(data).copy()
 
-        service_id = self.Config.SERVICE_ID                 # Defender serveur id
-        cmd = list(data).copy()
+            match cmd[1]:
 
-        if len(cmd) < 2:
-            return None
+                case 'REPUTATION':
+                    # :001 REPUTATION 91.168.141.239 118
+                    try:
+                        self.reputation_first_connexion['ip'] = cmd[2]
+                        self.reputation_first_connexion['score'] = cmd[3]
+                        if str(cmd[3]).find('*') != -1:
+                            # If the reputation changed, we do not need to scan the IP
+                            return None
 
-        match cmd[1]:
+                        if not self.Base.is_valid_ip(cmd[2]):
+                            return None
 
-            case 'EOS':
-                if self.Irc.INIT == 0:
-                    self.Irc.send2socket(f":{service_id} SAMODE {self.Config.SALON_JAIL} +{self.Config.SERVICE_UMODES} {self.Config.SERVICE_NICKNAME}")
+                        # Possibilité de déclancher les bans a ce niveau.
+                    except IndexError as ie:
+                        self.Logs.error(f'cmd reputation: index error: {ie}')
 
-            case 'REPUTATION':
-                # :001 REPUTATION 91.168.141.239 118
-                try:
-                    self.reputation_first_connexion['ip'] = cmd[2]
-                    self.reputation_first_connexion['score'] = cmd[3]
-                    if str(cmd[3]).find('*') != -1:
-                        # If the reputation changed, we do not need to scan the IP
+            if len(cmd) < 3:
+                return None
+
+            match cmd[2]:
+
+                case 'MODE':
+                    # ['...', ':001XSCU0Q', 'MODE', '#jail', '+b', '~security-group:unknown-users']
+                    channel = str(cmd[3])
+                    mode = str(cmd[4])
+                    group_to_check = str(cmd[5:])
+                    group_to_unban = '~security-group:unknown-users'
+
+                    if self.Config.SALON_JAIL == channel:
+                        if mode == '+b' and group_to_unban in group_to_check:
+                            self.Irc.send2socket(f":{service_id} MODE {self.Config.SALON_JAIL} -b ~security-group:unknown-users")
+                            self.Irc.send2socket(f":{service_id} MODE {self.Config.SALON_JAIL} -eee ~security-group:webirc-users ~security-group:known-users ~security-group:websocket-users")
+
+                case 'PRIVMSG':
+                    cmd.pop(0)
+                    user_trigger = str(cmd[0]).replace(':','')
+                    channel = cmd[2]
+                    find_nickname = self.User.get_nickname(user_trigger)
+                    self.flood(find_nickname, channel)
+
+                case 'UID':
+                    # If Init then do nothing
+                    if self.Irc.INIT == 1:
                         return None
 
-                    if not self.Base.is_valid_ip(cmd[2]):
-                        return None
+                    # Supprimer la premiere valeur et finir le code normalement
+                    cmd.pop(0)
 
-                    # Possibilité de déclancher les bans a ce niveau.
-                except IndexError as ie:
-                    self.Logs.error(f'cmd reputation: index error: {ie}')
+                    # Get User information
+                    _User = self.User.get_User(str(cmd[7]))
 
-        match cmd[2]:
-
-            case 'PRIVMSG':
-                cmd.pop(0)
-                user_trigger = str(cmd[0]).replace(':','')
-                channel = cmd[2]
-                find_nickname = self.User.get_nickname(user_trigger)
-                self.flood(find_nickname, channel)
-
-            case 'UID':
-                # If Init then do nothing
-                if self.Irc.INIT == 1:
-                    return None
-
-                # Supprimer la premiere valeur et finir le code normalement
-                cmd.pop(0)
-
-                # Get User information
-                _User = self.User.get_User(str(cmd[7]))
-
-                # If user is not service or IrcOp then scan them
-                if not re.match(fr'^.*[S|o?].*$', _User.umodes):
-                    self.abuseipdb_UserModel.append(_User) if self.ModConfig.abuseipdb_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
-                    self.freeipapi_UserModel.append(_User) if self.ModConfig.freeipapi_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
-                    self.cloudfilt_UserModel.append(_User) if self.ModConfig.cloudfilt_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
-                    self.psutil_UserModel.append(_User) if self.ModConfig.psutil_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
-                    self.localscan_UserModel.append(_User) if self.ModConfig.local_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
-
-                if _User is None:
-                    self.Logs.critical(f'This UID: [{cmd[7]}] is not available please check why')
-                    return None
-
-                reputation_flag = self.ModConfig.reputation
-                reputation_seuil = self.ModConfig.reputation_seuil
-
-                if self.Irc.INIT == 0:
-                    # Si le user n'es pas un service ni un IrcOP
+                    # If user is not service or IrcOp then scan them
                     if not re.match(fr'^.*[S|o?].*$', _User.umodes):
-                        if reputation_flag == 1 and _User.score_connexion <= reputation_seuil:
-                            currentDateTime = self.Base.get_datetime()
-                            self.reputation_insert(
-                                self.ReputationModel(
-                                    uid=_User.uid, nickname=_User.nickname, username=_User.username, realname=_User.realname, 
-                                    hostname=_User.hostname, umodes=_User.umodes, vhost=_User.vhost, ip=_User.remote_ip, score=_User.score_connexion,
-                                    secret_code=self.Base.get_random(8), isWebirc=_User.isWebirc, isWebsocket=_User.isWebsocket, connected_datetime=currentDateTime,
-                                    updated_datetime=currentDateTime
+                        self.abuseipdb_UserModel.append(_User) if self.ModConfig.abuseipdb_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+                        self.freeipapi_UserModel.append(_User) if self.ModConfig.freeipapi_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+                        self.cloudfilt_UserModel.append(_User) if self.ModConfig.cloudfilt_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+                        self.psutil_UserModel.append(_User) if self.ModConfig.psutil_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+                        self.localscan_UserModel.append(_User) if self.ModConfig.local_scan == 1 and not _User.remote_ip in self.Config.WHITELISTED_IP else None
+
+                    if _User is None:
+                        self.Logs.critical(f'This UID: [{cmd[7]}] is not available please check why')
+                        return None
+
+                    reputation_flag = self.ModConfig.reputation
+                    reputation_seuil = self.ModConfig.reputation_seuil
+
+                    if self.Irc.INIT == 0:
+                        # Si le user n'es pas un service ni un IrcOP
+                        if not re.match(fr'^.*[S|o?].*$', _User.umodes):
+                            if reputation_flag == 1 and _User.score_connexion <= reputation_seuil:
+                                currentDateTime = self.Base.get_datetime()
+                                self.reputation_insert(
+                                    self.ReputationModel(
+                                        uid=_User.uid, nickname=_User.nickname, username=_User.username, realname=_User.realname, 
+                                        hostname=_User.hostname, umodes=_User.umodes, vhost=_User.vhost, ip=_User.remote_ip, score=_User.score_connexion,
+                                        secret_code=self.Base.get_random(8), isWebirc=_User.isWebirc, isWebsocket=_User.isWebsocket, connected_datetime=currentDateTime,
+                                        updated_datetime=currentDateTime
+                                    )
                                 )
-                            )
-                            # self.Irc.send2socket(f":{service_id} WHOIS {nickname}")
-                            if self.reputation_check(_User.uid):
-                                if reputation_flag == 1 and _User.score_connexion <= reputation_seuil:
-                                    self.system_reputation(_User.uid)
-                                    self.Logs.info('Démarrer le systeme de reputation')
+                                # self.Irc.send2socket(f":{service_id} WHOIS {nickname}")
+                                if self.reputation_check(_User.uid):
+                                    if reputation_flag == 1 and _User.score_connexion <= reputation_seuil:
+                                        self.system_reputation(_User.uid)
+                                        self.Logs.info('Démarrer le systeme de reputation')
 
-            case 'SJOIN':
-                # ['@msgid=F9B7JeHL5pj9nN57cJ5pEr;time=2023-12-28T20:47:24.305Z', ':001', 'SJOIN', '1702138958', '#welcome', ':0015L1AHL']
-                try:
+                case 'SJOIN':
+                    # ['@msgid=F9B7JeHL5pj9nN57cJ5pEr;time=2023-12-28T20:47:24.305Z', ':001', 'SJOIN', '1702138958', '#welcome', ':0015L1AHL']
+                    try:
+                        cmd.pop(0)
+                        parsed_chan = cmd[3]
+
+                        if self.ModConfig.reputation == 1:
+                            parsed_UID = cmd[4]
+                            pattern = fr'^:[@|%|\+|~|\*]*'
+                            parsed_UID = re.sub(pattern, '', parsed_UID)
+
+                            get_reputation = self.reputation_get_Reputation(parsed_UID)
+
+                            if parsed_chan != self.Config.SALON_JAIL:
+                                self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b ~security-group:unknown-users")
+                                self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +eee ~security-group:webirc-users ~security-group:known-users ~security-group:websocket-users")
+
+                            if not get_reputation is None:
+                                isWebirc = get_reputation.isWebirc
+
+                                if not isWebirc:
+                                    if parsed_chan != self.Config.SALON_JAIL:
+                                        self.Irc.send2socket(f":{service_id} SAPART {get_reputation.nickname} {parsed_chan}")
+
+                                if self.ModConfig.reputation_ban_all_chan == 1 and not isWebirc:
+                                    if parsed_chan != self.Config.SALON_JAIL:
+                                        self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b {get_reputation.nickname}!*@*")
+                                        self.Irc.send2socket(f":{service_id} KICK {parsed_chan} {get_reputation.nickname}")
+
+                            self.Logs.debug(f'SJOIN parsed_uid : {parsed_UID}')
+                    except KeyError as ke:
+                        self.Logs.error(f"key error SJOIN : {ke}")
+
+                case 'SLOG':
+                    # self.Base.scan_ports(cmd[7])
                     cmd.pop(0)
-                    parsed_chan = cmd[3]
 
-                    if self.ModConfig.reputation == 1:
-                        parsed_UID = cmd[4]
-                        pattern = fr'^:[@|%|\+|~|\*]*'
-                        parsed_UID = re.sub(pattern, '', parsed_UID)
+                    if not self.Base.is_valid_ip(cmd[7]):
+                        return None
 
-                        get_reputation = self.reputation_get_Reputation(parsed_UID)
+                    # if self.ModConfig.local_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                    #     self.localscan_remote_ip.append(cmd[7])
 
-                        self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b ~security-group:unknown-users")
-                        self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +eee ~security-group:webirc-users ~security-group:known-users ~security-group:websocket-users")
+                    # if self.ModConfig.psutil_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                    #     self.psutil_remote_ip.append(cmd[7])
 
-                        if not get_reputation is None:
-                            isWebirc = get_reputation.isWebirc
+                    # if self.ModConfig.abuseipdb_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                    #     self.abuseipdb_remote_ip.append(cmd[7])
 
-                            if not isWebirc:
-                                if parsed_chan != self.Config.SALON_JAIL:
-                                    self.Irc.send2socket(f":{service_id} SAPART {get_reputation.nickname} {parsed_chan}")
+                    # if self.ModConfig.freeipapi_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                    #     self.freeipapi_remote_ip.append(cmd[7])
 
-                            if self.ModConfig.reputation_ban_all_chan == 1 and not isWebirc:
-                                if parsed_chan != self.Config.SALON_JAIL:
-                                    self.Irc.send2socket(f":{service_id} MODE {parsed_chan} +b {get_reputation.nickname}!*@*")
-                                    self.Irc.send2socket(f":{service_id} KICK {parsed_chan} {get_reputation.nickname}")
+                    # if self.ModConfig.cloudfilt_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
+                    #     self.cloudfilt_remote_ip.append(cmd[7])
 
-                        self.Logs.debug(f'SJOIN parsed_uid : {parsed_UID}')
-                except KeyError as ke:
-                    self.Logs.error(f"key error SJOIN : {ke}")
+                case 'NICK':
+                    # :0010BS24L NICK [NEWNICK] 1697917711
+                    # Changement de nickname
+                    try:
+                        cmd.pop(0)
+                        uid = str(cmd[0]).replace(':','')
+                        get_Reputation = self.reputation_get_Reputation(uid)
+                        jail_salon = self.Config.SALON_JAIL
+                        service_id = self.Config.SERVICE_ID
 
-            case 'SLOG':
-                # self.Base.scan_ports(cmd[7])
-                cmd.pop(0)
+                        if get_Reputation is None:
+                            self.Logs.debug(f'This UID: {uid} is not listed in the reputation dataclass')
+                            return None
 
-                if not self.Base.is_valid_ip(cmd[7]):
-                    return None
+                        # Update the new nickname
+                        oldnick = get_Reputation.nickname
+                        newnickname = cmd[2]
+                        get_Reputation.nickname = newnickname
 
-                # if self.ModConfig.local_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                #     self.localscan_remote_ip.append(cmd[7])
+                        # If ban in all channel is ON then unban old nickname an ban the new nickname
+                        if self.ModConfig.reputation_ban_all_chan == 1:
+                            for chan in self.Channel.UID_CHANNEL_DB:
+                                if chan.name != jail_salon:
+                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} -b {oldnick}!*@*")
+                                    self.Irc.send2socket(f":{service_id} MODE {chan.name} +b {newnickname}!*@*")
 
-                # if self.ModConfig.psutil_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                #     self.psutil_remote_ip.append(cmd[7])
+                    except KeyError as ke:
+                        self.Logs.error(f'cmd - NICK - KeyError: {ke}')
 
-                # if self.ModConfig.abuseipdb_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                #     self.abuseipdb_remote_ip.append(cmd[7])
-
-                # if self.ModConfig.freeipapi_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                #     self.freeipapi_remote_ip.append(cmd[7])
-
-                # if self.ModConfig.cloudfilt_scan == 1 and not cmd[7] in self.Config.WHITELISTED_IP:
-                #     self.cloudfilt_remote_ip.append(cmd[7])
-
-            case 'NICK':
-                # :0010BS24L NICK [NEWNICK] 1697917711
-                # Changement de nickname
-                try:
+                case 'QUIT':
+                    # :001N1WD7L QUIT :Quit: free_znc_1
                     cmd.pop(0)
-                    uid = str(cmd[0]).replace(':','')
-                    get_Reputation = self.reputation_get_Reputation(uid)
+                    ban_all_chan = self.Base.int_if_possible(self.ModConfig.reputation_ban_all_chan)
+                    user_id = str(cmd[0]).replace(':','')
+                    final_UID = user_id
+
                     jail_salon = self.Config.SALON_JAIL
                     service_id = self.Config.SERVICE_ID
 
-                    if get_Reputation is None:
-                        self.Logs.debug(f'This UID: {uid} is not listed in the reputation dataclass')
-                        return None
+                    get_user_reputation = self.reputation_get_Reputation(final_UID)
 
-                    # Update the new nickname
-                    oldnick = get_Reputation.nickname
-                    newnickname = cmd[2]
-                    get_Reputation.nickname = newnickname
-
-                    # If ban in all channel is ON then unban old nickname an ban the new nickname
-                    if self.ModConfig.reputation_ban_all_chan == 1:
+                    if not get_user_reputation is None:
+                        final_nickname = get_user_reputation.nickname
                         for chan in self.Channel.UID_CHANNEL_DB:
-                            if chan.name != jail_salon:
-                                self.Irc.send2socket(f":{service_id} MODE {chan.name} -b {oldnick}!*@*")
-                                self.Irc.send2socket(f":{service_id} MODE {chan.name} +b {newnickname}!*@*")
+                            if chan.name != jail_salon and ban_all_chan == 1:
+                                self.Irc.send2socket(f":{service_id} MODE {chan.name} -b {final_nickname}!*@*")
+                        self.reputation_delete(final_UID)
 
-                except KeyError as ke:
-                    self.Logs.error(f'cmd - NICK - KeyError: {ke}')
-
-            case 'QUIT':
-                # :001N1WD7L QUIT :Quit: free_znc_1
-                cmd.pop(0)
-                ban_all_chan = self.Base.int_if_possible(self.ModConfig.reputation_ban_all_chan)
-                user_id = str(cmd[0]).replace(':','')
-                final_UID = user_id
-
-                jail_salon = self.Config.SALON_JAIL
-                service_id = self.Config.SERVICE_ID
-
-                get_user_reputation = self.reputation_get_Reputation(final_UID)
-
-                if not get_user_reputation is None:
-                    final_nickname = get_user_reputation.nickname
-                    for chan in self.Channel.UID_CHANNEL_DB:
-                        if chan.name != jail_salon and ban_all_chan == 1:
-                            self.Irc.send2socket(f":{service_id} MODE {chan.name} -b {final_nickname}!*@*")
-                    self.reputation_delete(final_UID)
+        except KeyError as ke:
+            self.Logs.error(f"{ke} / {cmd} / length {str(len(cmd))}")
+        except IndexError as ie:
+            self.Logs.error(f"{ie} / {cmd} / length {str(len(cmd))}")
+        except Exception as err:
+            self.Logs.error(f"General Error: {err}")
 
     def _hcmds(self, user:str, channel: any, cmd: list, fullcmd: list = []) -> None:
 
