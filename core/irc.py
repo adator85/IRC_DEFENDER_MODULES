@@ -1010,7 +1010,8 @@ class Irc:
                             arg.remove(f':{self.Config.SERVICE_PREFIX}')
                             if not arg[0].lower() in self.commands:
                                 self.Base.logs.debug(f"This command {arg[0]} is not available")
-                                return False
+                                self.sendNotice(f"This command [{self.Config.COLORS.bold}{arg[0]}{self.Config.COLORS.bold}] is not available", user_trigger)
+                                return None
 
                             cmd_to_send = convert_to_string.replace(':','')
                             self.Base.log_cmd(user_trigger, cmd_to_send)

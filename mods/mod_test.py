@@ -128,6 +128,10 @@ class Test():
             cmd = list(data).copy()
 
             return None
+        except KeyError as ke:
+            self.Base.logs.error(f"Key Error: {ke}")
+        except IndexError as ie:
+            self.Base.logs.error(f"{ie} / {cmd} / length {str(len(cmd))}")
         except Exception as err:
             self.Base.logs.error(f"General Error: {err}")
 
