@@ -591,7 +591,7 @@ class Base:
             )
         '''
         
-        table_core_channel = '''CREATE TABLE IF NOT EXISTS core_channel (
+        table_core_channel = f'''CREATE TABLE IF NOT EXISTS {self.Config.table_channel} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             datetime TEXT,
             module_name TEXT,
