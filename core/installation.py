@@ -1,6 +1,6 @@
 import os
 import json
-from sys import exit
+from sys import exit, executable, prefix, exec_prefix
 from dataclasses import dataclass
 from subprocess import check_call, run, CalledProcessError, PIPE, check_output
 from platform import python_version, python_version_tuple
@@ -161,6 +161,11 @@ class Install:
         try:
             newVersion = False
             self.get_packages_version_from_json()
+            
+            if not self.config.venv_folder in prefix:
+                print(f"You are probably running a new installation or you are not using your virtual env {self.config.venv_folder}")
+                return newVersion
+
             print(f"> Checking for dependencies versions ==> WAIT")
             for package in self.DB_PACKAGES:
                 newVersion = False
