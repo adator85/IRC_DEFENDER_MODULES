@@ -1,6 +1,6 @@
 import os
 import json
-from sys import exit, executable, prefix, exec_prefix
+from sys import exit, prefix
 from dataclasses import dataclass
 from subprocess import check_call, run, CalledProcessError, PIPE, check_output
 from platform import python_version, python_version_tuple
@@ -42,6 +42,8 @@ class Install:
         # Sinon tester les dependances python et les installer avec pip
         if self.do_install():
 
+            self.check_packages_version()
+
             self.install_dependencies()
 
             self.create_service_file()
@@ -80,8 +82,6 @@ class Install:
         if not self.check_python_version():
             # If the Python version is not good then Exit
             exit("/!\\ Python version error /!\\")
-
-        self.check_packages_version()
 
         if not os.path.exists(os.path.join(self.config.defender_install_folder, 'core', 'configuration.json')):
             # If configuration file do not exist
