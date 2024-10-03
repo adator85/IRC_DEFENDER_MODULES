@@ -48,7 +48,6 @@ class Base:
         with open(version_filename, 'r') as version_data:
             current_version:dict[str, str] = json.load(version_data)
 
-        # self.DEFENDER_VERSION = current_version["version"]
         self.Config.current_version = current_version['version']
 
         return None
@@ -81,6 +80,14 @@ class Base:
             self.logs.warning(f'Github not available to fetch latest version')
 
     def check_for_new_version(self, online:bool) -> bool:
+        """Check if there is a new version available
+
+        Args:
+            online (bool): True if you want to get the version from github (main branch)
+
+        Returns:
+            bool: True if there is a new version available
+        """
         try:
             self.logs.debug(f'Checking for a new service version')
 
