@@ -172,7 +172,7 @@ class Install:
                 required_version = package.version
                 installed_version = None
 
-                output = check_output(['pip', 'show', package.name])
+                output = check_output([self.config.venv_pip_executable, 'show', package.name])
                 for line in output.decode().splitlines():
                     if line.startswith('Version:'):
                         installed_version = line.split(':')[1].strip()

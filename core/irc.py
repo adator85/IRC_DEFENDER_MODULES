@@ -95,13 +95,15 @@ class Irc:
             return None
 
         except ssl.SSLEOFError as soe:
-            self.Base.logs.critical(f"SSLEOFError __create_socket: {soe} - {soc.fileno()}")
+            self.Base.logs.critical(f"SSLEOFError: {soe} - {soc.fileno()}")
         except ssl.SSLError as se:
-            self.Base.logs.critical(f"SSLError __create_socket: {se} - {soc.fileno()}")
+            self.Base.logs.critical(f"SSLError: {se} - {soc.fileno()}")
         except OSError as oe:
-            self.Base.logs.critical(f"OSError __create_socket: {oe} - {soc.fileno()}")
+            self.Base.logs.critical(f"OSError: {oe} - {soc.fileno()}")
+            if 'connection refused' in str(oe).lower():
+                sys.exit(oe)
         except AttributeError as ae:
-            self.Base.logs.critical(f"AttributeError __create_socket: {ae} - {soc.fileno()}")
+            self.Base.logs.critical(f"AttributeError: {ae} - {soc.fileno()}")
 
     def __ssl_context(self) -> ssl.SSLContext:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
