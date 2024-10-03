@@ -192,7 +192,7 @@ class Install:
                     newVersion = True
 
                 if newVersion:
-                    self.run_subprocess(['pip', 'install', '--upgrade', package.name])
+                    self.run_subprocess([self.config.venv_pip_executable, 'install', '--upgrade', package.name])
 
             print(f"> Dependencies versions ==> OK")
             return newVersion
