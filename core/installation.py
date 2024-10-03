@@ -39,10 +39,10 @@ class Install:
         if self.skip_install:
             return None
 
+        self.check_packages_version()
+
         # Sinon tester les dependances python et les installer avec pip
         if self.do_install():
-
-            self.check_packages_version()
 
             self.install_dependencies()
 
