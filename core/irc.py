@@ -534,11 +534,61 @@ class Irc:
             self.Base.logs.error(f"General Error: {err}")
             return False
 
+    def reload_module(self, from_user: str, mod_name: str) -> bool:
+        try:
+            module_name = mod_name.lower()                       # ==> mod_defender
+            class_name = module_name.split('_')[1].capitalize()  # ==> Defender
+
+            if 'mods.' + module_name in sys.modules:
+                self.Base.logs.info('Unload the module ...')
+                self.loaded_classes[class_name].unload()
+                self.Base.logs.info('Module Already Loaded ... reloading the module ...')
+                the_module = sys.modules['mods.' + module_name]
+                importlib.reload(the_module)
+
+                # Supprimer la class déja instancier
+                if class_name in self.loaded_classes:
+                # Supprimer les commandes déclarer dans la classe
+                    for level, command in self.loaded_classes[class_name].commands_level.items():
+                        # Supprimer la commande de la variable commands
+                        for c in self.loaded_classes[class_name].commands_level[level]:
+                            self.commands.remove(c)
+                            self.commands_level[level].remove(c)
+
+                    del self.loaded_classes[class_name]
+
+                my_class = getattr(the_module, class_name, None)
+                new_instance = my_class(self.ircObject)
+                self.loaded_classes[class_name] = new_instance
+
+                self.Base.db_update_module(from_user, mod_name)
+                self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} rechargé")
+                return False
+            else:
+                self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} n'est pas chargé !")
+
+        except TypeError as te:
+            self.Base.logs.error(f"A TypeError raised: {te}")
+            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :A TypeError raised: {te}")
+            self.Base.db_delete_module(module_name)
+        except AttributeError as ae:
+            self.Base.logs.error(f"Missing Attribute: {ae}")
+            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Missing Attribute: {ae}")
+            self.Base.db_delete_module(module_name)
+        except KeyError as ke:
+            self.Base.logs.error(f"Key Error: {ke}")
+            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Key Error: {ke}")
+            self.Base.db_delete_module(module_name)
+        except Exception as e:
+            self.Base.logs.error(f"Something went wrong with a module you want to reload: {e}")
+            self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Something went wrong with the module: {e}")
+            self.Base.db_delete_module(module_name)
+
     def insert_db_admin(self, uid:str, level:int) -> None:
 
         if self.User.get_User(uid) is None:
             return None
-        
+
         getUser = self.User.get_User(uid)
 
         nickname = getUser.nickname
@@ -1049,7 +1099,7 @@ class Irc:
                                     ping_response = current_unixtime - recieved_unixtime
 
                                     self.send2socket(f'PONG :{recieved_unixtime}')
-                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01PING {recieved_unixtime} secs\x01')
+                                    self.send2socket(f':{dnickname} NOTICE {user_trigger} :\x01PING {ping_response} secs\x01')
                                     return False
 
                                 if not arg[0].lower() in self.commands:
@@ -1365,8 +1415,14 @@ class Irc:
                 self.send2socket(f':{dnickname} NOTICE {fromuser} : ***************** FIN DES COMMANDES *****************')
 
             case 'load':
-
-                self.load_module(fromuser, str(cmd[1]))
+                try:
+                    # Load a module ex: .load mod_defender
+                    mod_name = str(cmd[1])
+                    self.load_module(fromuser, mod_name)
+                except KeyError as ke:
+                    self.Base.logs.error(f"Key Error: {ke} - list recieved: {cmd}")
+                except Exception as err:
+                    self.Base.logs.error(f"General Error: {ke} - list recieved: {cmd}")
 
             case 'unload':
                 # unload mod_defender
@@ -1377,50 +1433,10 @@ class Irc:
                     self.Base.logs.error(f"General Error: {err}")
 
             case 'reload':
-                # reload mod_dktmb
+                # reload mod_defender
                 try:
-                    module_name = str(cmd[1]).lower()                                          # ==> mod_defender
-                    class_name = module_name.split('_')[1].capitalize()                        # ==> Defender
-
-                    if 'mods.' + module_name in sys.modules:
-                        self.Base.logs.info('Unload the module ...')
-                        self.loaded_classes[class_name].unload()
-                        self.Base.logs.info('Module Already Loaded ... reloading the module ...')
-                        the_module = sys.modules['mods.' + module_name]
-                        importlib.reload(the_module)
-
-                        # Supprimer la class déja instancier
-                        if class_name in self.loaded_classes:
-                        # Supprimer les commandes déclarer dans la classe
-                            for level, command in self.loaded_classes[class_name].commands_level.items():
-                                # Supprimer la commande de la variable commands
-                                for c in self.loaded_classes[class_name].commands_level[level]:
-                                    self.commands.remove(c)
-                                    self.commands_level[level].remove(c)
-
-                            del self.loaded_classes[class_name]
-
-                        my_class = getattr(the_module, class_name, None)
-                        new_instance = my_class(self.ircObject)
-                        self.loaded_classes[class_name] = new_instance
-
-                        self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} rechargé")
-                        return False
-                    else:
-                        self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Module {module_name} n'est pas chargé !")
-
-                except TypeError as te:
-                    self.Base.logs.error(f"A TypeError raised: {te}")
-                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :A TypeError raised: {te}")
-                    self.Base.db_delete_module(module_name)
-                except AttributeError as ae:
-                    self.Base.logs.error(f"Missing Attribute: {ae}")
-                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Missing Attribute: {ae}")
-                    self.Base.db_delete_module(module_name)
-                except KeyError as ke:
-                    self.Base.logs.error(f"Key Error: {ke}")
-                    self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Key Error: {ke}")
-                    self.Base.db_delete_module(module_name)
+                    module_name = str(cmd[1]).lower()   # ==> mod_defender
+                    self.reload_module(from_user=fromuser, mod_name=module_name)
                 except Exception as e:
                     self.Base.logs.error(f"Something went wrong with a module you want to reload: {e}")
                     self.send2socket(f":{self.Config.SERVICE_NICKNAME} PRIVMSG {self.Config.SERVICE_CHANLOG} :Something went wrong with the module: {e}")
@@ -1471,23 +1487,23 @@ class Irc:
 
                 self.Base.logs.debug(self.loaded_classes)
                 all_modules  = self.Base.get_all_modules()
+                loaded = False
 
-                results = self.Base.db_execute_query(f'SELECT module_name FROM {self.Config.table_module}')
+                results = self.Base.db_execute_query(f'SELECT datetime, user, module_name FROM {self.Config.table_module}')
                 results = results.fetchall()
-
-                found = False
 
                 for module in all_modules:
                     for loaded_mod in results:
-                        if module == loaded_mod[0]:
-                            found = True
+                        if module == loaded_mod[2]:
+                            loaded_datetime = loaded_mod[0]
+                            loaded_user = loaded_mod[1]
+                            loaded = True
 
-                    if found:
-                        self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.COLORS.green}Loaded{self.Config.COLORS.nogc}")
+                    if loaded:
+                        self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.COLORS.green}Loaded{self.Config.COLORS.nogc} by {loaded_user} on {loaded_datetime}")
+                        loaded = False
                     else:
                         self.send2socket(f":{dnickname} NOTICE {fromuser} :{module} - {self.Config.COLORS.red}Not Loaded{self.Config.COLORS.nogc}")
-
-                    found = False
 
             case 'show_timers':
 

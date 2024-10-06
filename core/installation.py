@@ -101,7 +101,7 @@ class Install:
     def is_root(self) -> bool:
 
         if os.geteuid() != 0:
-            print('User without privileges ==> PASS')
+            print('> User without privileges ==> OK')
             return False
         elif os.geteuid() == 0:
             print('/!\\ Do not use root to install Defender /!\\')
