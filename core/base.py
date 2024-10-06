@@ -236,6 +236,19 @@ class Base:
 
         return False
 
+    def db_update_module(self, user_cmd: str, module_name: str) -> None:
+        """Modifie la date et le user qui a rechargé le module
+
+        Args:
+            user_cmd (str): le user qui a rechargé le module
+            module_name (str): le module a rechargé
+        """
+        update_cmd_query = f"UPDATE {self.Config.table_module} SET datetime = :datetime, user = :user WHERE module_name = :module_name"
+        mes_donnees = {'datetime': self.get_datetime(), 'user': user_cmd, 'module_name': module_name}
+        self.db_execute_query(update_cmd_query, mes_donnees)
+
+        return False
+
     def db_delete_module(self, module_name:str) -> None:
         """Supprime les modules de la base de données
 
