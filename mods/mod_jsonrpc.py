@@ -59,10 +59,21 @@ class Jsonrpc():
         self.__load_module_configuration()
         # End of mandatory methods you can start your customization #
 
-        self.UnrealIrcdRpcLive: Live = Live(path_to_socket_file=self.Config.JSONRPC_PATH_TO_SOCKET_FILE,
-                       callback_object_instance=self,
-                       callback_method_name='callback_sent_to_irc'
-                       )
+        # self.UnrealIrcdRpcLive: Live = Live(
+        #                 req_method='unixsocket',
+        #                 path_to_socket_file=self.Config.JSONRPC_PATH_TO_SOCKET_FILE,
+        #                 callback_object_instance=self,
+        #                 callback_method_name='callback_sent_to_irc'
+        #                )
+
+        self.UnrealIrcdRpcLive: Live = Live(
+                    req_method='websocket',
+                    url=self.Config.JSONRPC_URL,
+                    username=self.Config.JSONRPC_USER,
+                    password=self.Config.JSONRPC_PASSWORD,
+                    callback_object_instance=self,
+                    callback_method_name='callback_sent_to_irc'
+                    )
 
         self.Rpc: Loader = Loader(
             req_method=self.Config.JSONRPC_METHOD,
