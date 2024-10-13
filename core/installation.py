@@ -37,6 +37,7 @@ class Install:
         self.set_configuration()
 
         if self.skip_install:
+            self.check_packages_version()
             return None
 
         self.check_packages_version()
@@ -85,11 +86,13 @@ class Install:
 
         if not os.path.exists(os.path.join(self.config.defender_install_folder, 'core', 'configuration.json')):
             # If configuration file do not exist
-            exit("/!\\ Configuration file (core/configuration.json) doesn't exist /!\\")
+            exit("/!\\ Configuration file (core/configuration.json) doesn't exist! please create it /!\\")
 
         # Exclude Windows OS from the installation
         if os.name == 'nt':
-            #print('/!\\ Skip installation /!\\')
+            # If windows, modify pip and python virtual environment executable
+            self.config.venv_pip_executable = f'{os.path.join(defender_install_folder, venv_folder, "Scripts")}{os.sep}pip.exe'
+            self.config.venv_python_executable = f'{os.path.join(defender_install_folder, venv_folder, "Scripts")}{os.sep}python.exe'
             self.skip_install = True
             return False
 

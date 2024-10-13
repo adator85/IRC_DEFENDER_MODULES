@@ -150,6 +150,7 @@ class Command():
                 try:
                     message = ' '.join(cmd[3:])
                     self.Irc.send2socket(f":{dnickname} NOTICE {self.user_to_notice} :[{red}ERROR MSG{nogc}] {message}")
+                    self.Base.logs.error(f"{cmd[1]} - {message}")
                 except KeyError as ke:
                     self.Base.logs.error(ke)
                 except Exception as err:
