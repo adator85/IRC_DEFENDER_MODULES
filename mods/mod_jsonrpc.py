@@ -262,6 +262,9 @@ class Jsonrpc():
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :VHOST                : {UserInfo.user.vhost}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CLIENT PORT          : {UserInfo.client_port}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :SERVER PORT          : {UserInfo.server_port}')
+                            
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CERTFP               : {UserInfo.tls.certfp}')
+                            self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CIPHER               : {UserInfo.tls.cipher}')
 
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :IDLE SINCE           : {UserInfo.idle_since}')
                             self.Irc.send2socket(f':{dnickname} NOTICE {fromuser} :CONNECTED SINCE      : {UserInfo.connected_since}')

@@ -313,7 +313,7 @@ class Irc:
 
     def send_response(self, responses:list[bytes]) -> None:
         try:
-            # print(data)
+            # print(responses)
             for data in responses:
                 response = data.decode(self.CHARSET[0]).split()
                 self.cmd(response)
